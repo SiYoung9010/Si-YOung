@@ -1,0 +1,5 @@
+{
+  "name": "Product Detail Page Builder GEM 2.0",
+  "description": "A tool to generate product detail page HTML from a JSON plan. Users can input a structured JSON on the left and get a complete, styled HTML page on the right.",
+  "requestFramePermissions": []
+}
