@@ -45,7 +45,6 @@ body {
   color: rgba(255,255,255,0.1);
   top: -50px;
   left: -50px;
-  animation: float 6s ease-in-out infinite;
 }
 
 .hero-section::after {
@@ -55,12 +54,6 @@ body {
   color: rgba(255,255,255,0.15);
   bottom: -30px;
   right: -30px;
-  animation: float 8s ease-in-out infinite reverse;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-20px); }
 }
 
 .brand-tag {
@@ -73,12 +66,6 @@ body {
   font-weight: 600;
   margin-bottom: 20px;
   letter-spacing: 2px;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
 }
 
 .main-title {
@@ -102,13 +89,6 @@ body {
 .emoji-deco {
   font-size: 32px;
   margin: 20px 0;
-  animation: bounce 3s infinite;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  25% { transform: translateY(-5px); }
-  75% { transform: translateY(5px); }
 }
 
 /* 이미지 섹션 */
@@ -357,16 +337,6 @@ body {
   transform: rotate(-5deg);
 }
 
-.point-item:hover .point-icon {
-  animation: wiggle 0.5s ease;
-}
-
-@keyframes wiggle {
-  0%, 100% { transform: rotate(-5deg); }
-  25% { transform: rotate(5deg); }
-  75% { transform: rotate(-10deg); }
-}
-
 .point-title {
   font-size: 20px;
   font-weight: 700;
@@ -497,7 +467,6 @@ body {
   position: absolute;
   font-size: 100px;
   opacity: 0.1;
-  animation: twinkle 3s ease-in-out infinite;
 }
 
 .recommend-section::before {
@@ -508,12 +477,6 @@ body {
 .recommend-section::after {
   bottom: 20px;
   right: 50px;
-  animation-delay: 1.5s;
-}
-
-@keyframes twinkle {
-  0%, 100% { opacity: 0.1; transform: scale(1); }
-  50% { opacity: 0.3; transform: scale(1.2); }
 }
 
 .recommend-badge {
@@ -645,12 +608,6 @@ body {
 
 .footer-emoji {
   font-size: 24px;
-  animation: heartbeat 1.5s ease-in-out infinite;
-}
-
-@keyframes heartbeat {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
 }
 
 /* 반응형 */

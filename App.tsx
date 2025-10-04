@@ -19,7 +19,7 @@ const FONT_OPTIONS = [
 ];
 
 const CopyIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+    <svg xmlns="http://www.w.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
         <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
         <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
     </svg>
@@ -775,13 +775,18 @@ interface EditingGeneratedImageState {
 }
 
 /**
- * Fetches a resource and converts it to a Blob URL.
- * @param url The URL of the resource to fetch.
- * @returns A promise that resolves to a Blob URL.
+ * Fetches a resource and returns its content as a Blob URL.
+ * More memory-efficient than Data URLs for binary assets.
  */
 const fetchAsBlobUrl = async (url: string): Promise<string> => {
-    const response = await fetch(url);
+    const response = await fetch(url, { mode: 'cors' });
     if (!response.ok) {
+        // Attempt a fetch without cors for opaque responses, though this has limitations
+        const noCorsResponse = await fetch(url, { mode: 'no-cors' });
+        if(noCorsResponse.ok || noCorsResponse.type === 'opaque') {
+             const blob = await noCorsResponse.blob();
+             return URL.createObjectURL(blob);
+        }
       throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
     }
     const blob = await response.blob();
@@ -789,90 +794,104 @@ const fetchAsBlobUrl = async (url: string): Promise<string> => {
 };
 
 /**
- * Fetches a resource and converts it to a Base64 Data URL.
- * @param url The URL of the resource to fetch.
- * @returns A promise that resolves to a Data URL.
+ * Parses CSS text, finds all url() declarations, and replaces them with Blob URLs.
  */
-const fetchAsDataUrl = (url: string): Promise<string> => {
-    return fetch(url)
-      .then(response => {
-        if (!response.ok) throw new Error(`Network response was not ok for url: ${url}`);
-        return response.blob();
-      })
-      .then(blob => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      }));
+const inlineCssUrls = async (cssText: string, baseUrl: string): Promise<string> => {
+    const urlRegex = /url\((['"]?)(.*?)\1\)/g;
+    const promises: Promise<void>[] = [];
+    const replacements = new Map<string, string>();
+    const uniqueUrls = new Set(Array.from(cssText.matchAll(urlRegex), m => m[2]));
+
+    for (const url of uniqueUrls) {
+        if (url.startsWith('data:') || url.startsWith('blob:')) {
+            continue;
+        }
+        promises.push((async () => {
+            try {
+                const absoluteUrl = new URL(url, baseUrl).href;
+                const blobUrl = await fetchAsBlobUrl(absoluteUrl);
+                replacements.set(url, blobUrl);
+            } catch (e) {
+                console.warn(`Could not inline CSS resource ${url}:`, e);
+            }
+        })());
+    }
+
+    await Promise.all(promises);
+
+    return cssText.replace(urlRegex, (match, quote, url) => {
+        return replacements.has(url) ? `url(${quote}${replacements.get(url)}${quote})` : match;
+    });
 };
 
 
 /**
- * Inlines all external assets (images, fonts) in a given HTML document.
+ * A robust function to inline all assets within a given HTML document.
  * This is crucial for html2canvas to avoid "tainted canvas" errors.
  * @param doc The document to process.
+ * @param setNotification A function to update the UI with progress.
  */
-const inlinePageAssets = async (doc: Document) => {
+const inlineAllAssets = async (
+    doc: Document,
+    setNotification: (notification: { message: string; type: 'info' | 'error' | 'success' } | null) => void
+) => {
     // 1. Inline all <img> tags
+    setNotification({ message: '이미지 리소스 변환 중... (1/3)', type: 'info' });
     const images = Array.from(doc.querySelectorAll('img'));
     await Promise.all(
       images.map(async (img) => {
-        if (img.src && (img.src.startsWith('http://') || img.src.startsWith('https://'))) {
+        const src = img.getAttribute('src');
+        if (src && !src.startsWith('data:') && !src.startsWith('blob:')) {
           try {
-            const blobUrl = await fetchAsBlobUrl(img.src);
+            img.crossOrigin = 'anonymous';
+            const blobUrl = await fetchAsBlobUrl(src);
             img.src = blobUrl;
           } catch (e) {
-            console.warn(`Could not inline image ${img.src}:`, e);
+            console.warn(`Could not inline image ${src}:`, e);
           }
         }
       })
     );
   
-    // 2. Inline web fonts from <link> stylesheets
-    // FIX: Cast querySelectorAll to HTMLLinkElement to access the 'href' property.
+    // 2. Inline all <link rel="stylesheet"> and their nested assets (fonts, images)
+    setNotification({ message: 'CSS 및 폰트 변환 중... (2/3)', type: 'info' });
     const stylesheets = Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'));
-    const fontStyles = document.createElement('style');
-  
     await Promise.all(
-      stylesheets.map(async (sheet) => {
-        if (sheet.href && sheet.href.includes('fonts.googleapis.com')) {
-          try {
-            const cssText = await (await fetch(sheet.href)).text();
-            // Regex to find all @font-face rules and their src urls
-            const fontFaceRegex = /@font-face\s*{[^}]*?src:\s*url\(([^)]+)\)[^}]*?}/g;
-            let match;
-            const newCssRules: string[] = [];
-  
-            const ruleMatches = Array.from(cssText.matchAll(fontFaceRegex));
-  
-            await Promise.all(ruleMatches.map(async (ruleMatch) => {
-              const rule = ruleMatch[0];
-              const fontUrl = ruleMatch[1];
-              if (fontUrl) {
+        stylesheets.map(async (sheet) => {
+            const href = sheet.getAttribute('href');
+            if (href) {
                 try {
-                  const dataUrl = await fetchAsDataUrl(fontUrl);
-                  const newRule = rule.replace(fontUrl, dataUrl);
-                  newCssRules.push(newRule);
+                    const response = await fetch(href);
+                    if (!response.ok) throw new Error(`Failed to fetch stylesheet: ${href}`);
+                    let cssText = await response.text();
+                    const inlinedCssText = await inlineCssUrls(cssText, href);
+                    const style = doc.createElement('style');
+                    style.textContent = inlinedCssText;
+                    sheet.parentNode?.replaceChild(style, sheet);
                 } catch (e) {
-                  console.warn(`Could not inline font ${fontUrl}:`, e);
-                  newCssRules.push(rule); // Keep original if fetch fails
+                    console.warn(`Could not process stylesheet ${href}:`, e);
                 }
-              }
-            }));
-            
-            fontStyles.appendChild(doc.createTextNode(newCssRules.join('\n')));
-            sheet.remove(); // Remove the original link tag
-          } catch (e) {
-            console.warn(`Could not process stylesheet ${sheet.href}:`, e);
+            }
+        })
+    );
+    
+    // 3. Inline all style attributes with background images
+    const elementsWithStyle = Array.from(doc.querySelectorAll<HTMLElement>('[style*="background-image"]'));
+    await Promise.all(
+      elementsWithStyle.map(async (el) => {
+        try {
+          const originalStyle = el.style.backgroundImage;
+          if (originalStyle && originalStyle.includes('url(')) {
+            const inlinedStyle = await inlineCssUrls(originalStyle, doc.location.href);
+            el.style.backgroundImage = inlinedStyle;
           }
+        } catch(e) {
+            console.warn('Could not inline background-image style:', e);
         }
       })
     );
-    if (fontStyles.innerHTML) {
-      doc.head.appendChild(fontStyles);
-    }
 };
+
 
 export default function App() {
     const [htmlInput, setHtmlInput] = useState<string>(INITIAL_HTML_INPUT);
@@ -1078,36 +1097,41 @@ export default function App() {
             tempIframe.style.position = 'absolute';
             tempIframe.style.left = '-9999px';
             const previewIframe = document.getElementById('preview-iframe') as HTMLIFrameElement;
-            if (previewIframe) {
-                // Match the width to ensure layout consistency.
-                tempIframe.style.width = `${previewIframe.clientWidth}px`;
-                tempIframe.style.height = '1000px'; // Temporary height
-            } else {
-                tempIframe.style.width = '1200px'; // Fallback width
-            }
-            tempIframe.srcdoc = previewHtml;
+            const width = previewIframe ? previewIframe.clientWidth : 1200;
+            tempIframe.style.width = `${width}px`;
+            tempIframe.style.height = '1000px';
+            
             document.body.appendChild(tempIframe);
             
+            // Using srcdoc to inject content
+            tempIframe.srcdoc = previewHtml;
             await new Promise<void>((resolve, reject) => {
-                tempIframe.onload = () => resolve();
-                setTimeout(() => reject(new Error("Iframe load timed out")), 10000);
+                let resolved = false;
+                const timeout = setTimeout(() => {
+                    if (!resolved) reject(new Error("Iframe load timed out after 10 seconds"));
+                }, 10000);
+                tempIframe.onload = () => {
+                    resolved = true;
+                    clearTimeout(timeout);
+                    resolve();
+                };
             });
     
             // Step 2: Inline all assets within the iframe's document.
             if (!tempIframe.contentDocument) {
                 throw new Error("Temporary iframe content document not available.");
             }
-            setNotification({ message: '외부 자원(이미지/폰트)을 변환 중입니다...', type: 'info' });
-            await inlinePageAssets(tempIframe.contentDocument);
+            await inlineAllAssets(tempIframe.contentDocument, setNotification);
             
             // Allow some time for fonts and images to fully render after inlining
             await new Promise(resolve => setTimeout(resolve, 500));
     
             // Step 3: Capture the now "clean" iframe content.
-            setNotification({ message: '페이지를 캡처합니다...', type: 'info' });
+            setNotification({ message: '페이지를 캡처합니다... (3/3)', type: 'info' });
             const elementToCapture = tempIframe.contentDocument.documentElement;
             const canvas = await html2canvas(elementToCapture, {
                 useCORS: true,
+                allowTaint: false,
                 backgroundColor: null,
                 scale: exportScale,
                 imageTimeout: 0,
