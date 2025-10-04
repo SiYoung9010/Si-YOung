@@ -19,7 +19,7 @@ const FONT_OPTIONS = [
 ];
 
 const CopyIcon = () => (
-    <svg xmlns="http://www.w.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
         <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
         <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
     </svg>
@@ -265,9 +265,11 @@ const AiFeedbackPanel: React.FC<{
     applyingSuggestionIndex: number | null;
 }> = ({ feedback, isLoading, error, onApplySuggestion, onGenerateImage, onInsertGeneratedImage, onEditGeneratedImage, applyingSuggestionIndex }) => {
     
+    // FIX: The conditional return in the original `useMemo` (`if (!feedback) return {}`) caused it to have a union return type.
+    // This confused TypeScript's inference for `Object.entries`, leading to `suggestions` being typed as `unknown`.
+    // By reducing over `(feedback || [])`, we ensure a consistent `Record` type is always returned, fixing the error.
     const groupedFeedback = useMemo(() => {
-        if (!feedback) return {};
-        return feedback.reduce((acc, item, index) => {
+        return (feedback || []).reduce((acc, item, index) => {
             const itemWithIndex = { ...item, originalIndex: index };
             (acc[item.category] = acc[item.category] || []).push(itemWithIndex);
             return acc;
@@ -930,7 +932,7 @@ export default function App() {
     const [editingGeneratedImage, setEditingGeneratedImage] = useState<EditingGeneratedImageState | null>(null);
     const [isAiEditingImage, setIsAiEditingImage] = useState(false);
 
-    const [isSavingReference, setIsSavingReference] = useState<boolean>(false);
+    const [isSavingWork, setIsSavingWork] = useState<boolean>(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     useEffect(() => {
@@ -982,8 +984,26 @@ export default function App() {
     }, [jsonInput, htmlInput, selectedFont]);
 
     useEffect(() => {
-        // Automatically update preview on first load by generating from initial JSON
-        handleGenerateHtml();
+        try {
+            const savedHtml = localStorage.getItem('savedProductPageHTML');
+            const savedJson = localStorage.getItem('savedProductPageJSON');
+            const savedFont = localStorage.getItem('savedProductPageFont');
+
+            if (savedHtml && savedJson) {
+                setHtmlInput(savedHtml);
+                setJsonInput(savedJson);
+                setPreviewHtml(savedHtml);
+                if (savedFont && FONT_OPTIONS.includes(savedFont)) {
+                    setSelectedFont(savedFont);
+                }
+                setTimeout(() => setNotification({ message: '저장된 작업을 불러왔습니다.', type: 'info' }), 100);
+            } else {
+                handleGenerateHtml();
+            }
+        } catch (error) {
+            console.error("Failed to load saved work from localStorage", error);
+            handleGenerateHtml();
+        }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     },[]);
 
@@ -1196,50 +1216,24 @@ export default function App() {
         }
     }, [previewHtml, isSplitEnabled, splitHeight, exportScale]);
 
-    const handleSaveReference = useCallback(() => {
-        const name = prompt("레퍼런스 이름을 입력하세요 (Enter a name for this reference):");
-        if (!name) return;
-        const description = prompt("레퍼런스 설명을 입력하세요 (Enter a description):", "No description");
-        if (description === null) return;
-    
-        setIsSavingReference(true);
+    const handleSaveWorkToLocal = useCallback(() => {
+        setIsSavingWork(true);
         setNotification(null);
-    
         try {
-            const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300" style="background-color:#374151;">
-                <style>
-                    .title { font: bold 24px sans-serif; fill: #d1d5db; white-space: pre-wrap; }
-                    .desc { font: 16px sans-serif; fill: #9ca3af; }
-                </style>
-                <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" class="title">${name}</text>
-                <text x="50%" y="58%" dominant-baseline="middle" text-anchor="middle" class="desc">HTML/JSON Saved</text>
-                <text x="50%" y="68%" dominant-baseline="middle" text-anchor="middle" class="desc">${new Date().toLocaleString()}</text>
-            </svg>`;
-            
-            const thumbnailDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(placeholderSvg)))}`;
-
-            const newReference: Reference = {
-                id: Date.now().toString(),
-                name,
-                description,
-                thumbnailDataUrl,
-                html: htmlInput,
-                json: jsonInput,
-            };
-    
-            const updatedReferences = [...references, newReference];
-            setReferences(updatedReferences);
-            localStorage.setItem('pageReferences', JSON.stringify(updatedReferences));
-            setNotification({ message: '레퍼런스를 성공적으로 저장했습니다!', type: 'success' });
-    
+            localStorage.setItem('savedProductPageHTML', htmlInput);
+            localStorage.setItem('savedProductPageJSON', jsonInput);
+            localStorage.setItem('savedProductPageFont', selectedFont);
+            setNotification({ message: '현재 작업을 브라우저에 저장했습니다!', type: 'success' });
         } catch (err) {
-            console.error('Error saving reference:', err);
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            setNotification({ message: `레퍼런스 저장 실패: ${errorMessage}`, type: 'error' });
+            console.error('Error saving work to localStorage:', err);
+            const errorMessage = err instanceof Error && err.name === 'QuotaExceededError' 
+                ? '브라우저 저장 공간이 부족합니다.' 
+                : '알 수 없는 오류가 발생했습니다.';
+            setNotification({ message: `작업 저장 실패: ${errorMessage}`, type: 'error' });
         } finally {
-            setIsSavingReference(false);
+            setIsSavingWork(false);
         }
-    }, [htmlInput, jsonInput, references]);
+    }, [htmlInput, jsonInput, selectedFont]);
     
     const handleLoadReference = (reference: Reference) => {
         if (window.confirm("현재 작업 내용이 사라집니다. 레퍼런스를 불러오시겠습니까? (This will replace your current work. Load reference?)")) {
@@ -1630,11 +1624,11 @@ export default function App() {
                             </select>
                         </div>
                         <button
-                            onClick={handleSaveReference}
-                            disabled={!previewHtml || isSavingReference}
+                            onClick={handleSaveWorkToLocal}
+                            disabled={!previewHtml || isSavingWork}
                             className="px-4 py-2 flex items-center justify-center bg-teal-600 hover:bg-teal-700 disabled:bg-teal-800 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-lg"
                         >
-                             {isSavingReference ? '저장 중...' : '+ 현재 페이지 레퍼런스로 저장'}
+                             {isSavingWork ? '저장 중...' : '💾 현재 작업 저장'}
                         </button>
 
                         <div className="flex items-center gap-2">
