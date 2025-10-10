@@ -1,5 +1,3 @@
-
-
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { getAiFeedback, getAiSuggestionsFromNotes, getBenchmarkingAnalysis, applyAiSuggestion, generateJsonFromImage, insertImageIntoHtml, editImageWithAi, generateImageFromSuggestion } from './services/aiService';
 import { generateHtml } from './services/htmlGenerator';
@@ -18,10 +16,36 @@ const FONT_OPTIONS = [
   'IBM Plex Sans KR',
 ];
 
+const LoadIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+    </svg>
+);
+
+const ClearIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+        <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+    </svg>
+);
+
 const CopyIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
         <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
         <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+    </svg>
+);
+
+const ExpandIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1h-4zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zM.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5z"/>
+    </svg>
+);
+
+const CollapseIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M5.5 1a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 5 1.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 0 3.5 1h-2a.5.5 0 0 1 0-1h2zM1 5.5a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 1 0-1h2A1.5 1.5 0 0 1 1.5 5v2a.5.5 0 0 1-1 0v-2zm14 0a.5.5 0 0 0 .5-.5v-2a.5.5 0 0 1 1 0v2A1.5 1.5 0 0 1 14.5 5h-2a.5.5 0 0 1 0-1h2zM5 14.5a.5.5 0 0 0 .5.5h2a.5.5 0 0 1 0 1h-2A1.5 1.5 0 0 1 5 14.5v-2a.5.5 0 0 1 1 0v2zm5 0a.5.5 0 0 0 .5.5h2a.5.5 0 0 1 0 1h-2a-1.5 1.5 0 0 1-1.5-1.5v-2a.5.5 0 0 1 1 0v2z"/>
     </svg>
 );
 
@@ -933,7 +957,10 @@ export default function App() {
     const [isAiEditingImage, setIsAiEditingImage] = useState(false);
 
     const [isSavingWork, setIsSavingWork] = useState<boolean>(false);
+    const [hasSavedData, setHasSavedData] = useState<boolean>(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+    const [isExpandedView, setIsExpandedView] = useState<boolean>(false);
 
     useEffect(() => {
         if (notification) {
@@ -982,8 +1009,8 @@ export default function App() {
             setIsLoading(false);
         }
     }, [jsonInput, htmlInput, selectedFont]);
-
-    useEffect(() => {
+    
+    const loadWorkFromLocal = useCallback(() => {
         try {
             const savedHtml = localStorage.getItem('savedProductPageHTML');
             const savedJson = localStorage.getItem('savedProductPageJSON');
@@ -996,12 +1023,29 @@ export default function App() {
                 if (savedFont && FONT_OPTIONS.includes(savedFont)) {
                     setSelectedFont(savedFont);
                 }
-                setTimeout(() => setNotification({ message: '저장된 작업을 불러왔습니다.', type: 'info' }), 100);
+                setNotification({ message: '저장된 작업을 불러왔습니다.', type: 'info' });
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error("Failed to load saved work from localStorage", error);
+            setNotification({ message: '저장된 작업 불러오기 실패.', type: 'error' });
+            return false;
+        }
+    }, []);
+
+
+    useEffect(() => {
+        const savedDataExists = !!localStorage.getItem('savedProductPageHTML');
+        setHasSavedData(savedDataExists);
+
+        if (savedDataExists) {
+            if (window.confirm("저장된 작업이 있습니다. 불러오시겠습니까?")) {
+                loadWorkFromLocal();
             } else {
                 handleGenerateHtml();
             }
-        } catch (error) {
-            console.error("Failed to load saved work from localStorage", error);
+        } else {
             handleGenerateHtml();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1223,6 +1267,7 @@ export default function App() {
             localStorage.setItem('savedProductPageHTML', htmlInput);
             localStorage.setItem('savedProductPageJSON', jsonInput);
             localStorage.setItem('savedProductPageFont', selectedFont);
+            setHasSavedData(true);
             setNotification({ message: '현재 작업을 브라우저에 저장했습니다!', type: 'success' });
         } catch (err) {
             console.error('Error saving work to localStorage:', err);
@@ -1234,6 +1279,21 @@ export default function App() {
             setIsSavingWork(false);
         }
     }, [htmlInput, jsonInput, selectedFont]);
+
+    const handleClearSavedWork = useCallback(() => {
+        if (window.confirm("정말로 저장된 작업을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+            try {
+                localStorage.removeItem('savedProductPageHTML');
+                localStorage.removeItem('savedProductPageJSON');
+                localStorage.removeItem('savedProductPageFont');
+                setHasSavedData(false);
+                setNotification({ message: '저장된 데이터가 삭제되었습니다.', type: 'info' });
+            } catch (err) {
+                 console.error('Error clearing saved work from localStorage:', err);
+                 setNotification({ message: '데이터 삭제 실패.', type: 'error' });
+            }
+        }
+    }, []);
     
     const handleLoadReference = (reference: Reference) => {
         if (window.confirm("현재 작업 내용이 사라집니다. 레퍼런스를 불러오시겠습니까? (This will replace your current work. Load reference?)")) {
@@ -1426,7 +1486,7 @@ export default function App() {
 
     const renderBuilder = () => (
          <main className="flex-grow grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 items-stretch h-[calc(100vh-230px)] mt-6">
-            <div className="flex flex-col h-full min-w-0">
+            <div className={`flex flex-col h-full min-w-0 ${isExpandedView ? 'hidden' : ''}`}>
                 <div className="flex border-b border-gray-600">
                     <InputTabButton tabName="json">{`{} JSON으로 생성`}</InputTabButton>
                     <InputTabButton tabName="image">{`🖼️ 이미지로 JSON 생성`}</InputTabButton>
@@ -1464,7 +1524,7 @@ export default function App() {
                 </div>
             </div>
 
-            <div className="flex flex-col items-center justify-center space-y-4">
+            <div className={`flex-col items-center justify-center space-y-4 ${isExpandedView ? 'hidden' : 'flex'}`}>
                 {activeInputTab === 'html' ? (
                     <button
                         onClick={handleUpdatePreview}
@@ -1501,7 +1561,7 @@ export default function App() {
                 {jsonError && <div className="text-red-400 text-xs text-center max-w-xs">{jsonError}</div>}
             </div>
 
-            <div className="flex flex-col h-full min-w-0">
+            <div className={`flex flex-col h-full min-w-0 ${isExpandedView ? 'md:col-span-3' : ''}`}>
                 <div className="flex border-b border-gray-600 items-center">
                     <BuilderTabButton tabName="preview">Preview</BuilderTabButton>
                     <BuilderTabButton tabName="feedback">AI 피드백</BuilderTabButton>
@@ -1612,6 +1672,14 @@ export default function App() {
                 </div>
                 {activeMainTab === 'builder' && (
                     <div className="flex items-center gap-4 flex-wrap justify-end">
+                        <button
+                            onClick={() => setIsExpandedView(!isExpandedView)}
+                            className="px-4 py-2 flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg"
+                            title={isExpandedView ? "에디터로 돌아가기" : "미리보기 확대"}
+                        >
+                            {isExpandedView ? <CollapseIcon /> : <ExpandIcon />}
+                            <span className="ml-2 hidden md:inline">{isExpandedView ? "기본 보기" : "확대 보기"}</span>
+                        </button>
                         <div className="flex items-center gap-2">
                             <label htmlFor="font-selector" className="text-sm text-gray-300 whitespace-nowrap">글꼴:</label>
                             <select
@@ -1623,71 +1691,37 @@ export default function App() {
                                 {FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}
                             </select>
                         </div>
-                        <button
-                            onClick={handleSaveWorkToLocal}
-                            disabled={!previewHtml || isSavingWork}
-                            className="px-4 py-2 flex items-center justify-center bg-teal-600 hover:bg-teal-700 disabled:bg-teal-800 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-lg"
-                        >
-                             {isSavingWork ? '저장 중...' : '💾 현재 작업 저장'}
-                        </button>
 
-                        <div className="flex items-center gap-2">
-                            <input 
-                                type="checkbox" 
-                                id="split-image-checkbox"
-                                checked={isSplitEnabled}
-                                onChange={(e) => setIsSplitEnabled(e.target.checked)}
-                                className="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-500 rounded focus:ring-indigo-500"
-                            />
-                            <label htmlFor="split-image-checkbox" className="text-sm text-gray-300 whitespace-nowrap">이미지 분할 저장</label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <label htmlFor="split-height-input" className="text-sm text-gray-300 whitespace-nowrap">분할 높이(px):</label>
-                            <input 
-                                type="number" 
-                                id="split-height-input"
-                                value={splitHeight}
-                                onChange={(e) => setSplitHeight(Number(e.target.value))}
-                                disabled={!isSplitEnabled}
-                                className="w-24 bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-1.5 disabled:opacity-50"
-                            />
-                        </div>
-                         <div className="flex items-center gap-2">
-                            <label htmlFor="export-scale-selector" className="text-sm text-gray-300 whitespace-nowrap">화질:</label>
-                            <select
-                                id="export-scale-selector"
-                                value={exportScale}
-                                onChange={(e) => setExportScale(Number(e.target.value))}
-                                className="w-28 bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-1.5"
+                        <div className="bg-gray-700 p-1 rounded-lg flex items-center gap-1">
+                            <button
+                                onClick={handleSaveWorkToLocal}
+                                disabled={isSavingWork}
+                                className="px-3 py-1 flex items-center justify-center bg-teal-600 hover:bg-teal-700 disabled:bg-teal-800 disabled:cursor-not-allowed text-white font-bold rounded-md shadow-md text-sm"
                             >
-                                <option value="1">1x (표준)</option>
-                                <option value="2">2x (고화질)</option>
-                                <option value="3">3x (초고화질)</option>
-                            </select>
+                                 {isSavingWork ? '저장 중...' : '💾 현재 작업 저장'}
+                            </button>
+                             <button
+                                onClick={loadWorkFromLocal}
+                                disabled={!hasSavedData}
+                                className="px-3 py-1 flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-bold rounded-md shadow-md text-sm"
+                            >
+                                <LoadIcon /> <span className="ml-1.5">불러오기</span>
+                            </button>
+                             <button
+                                onClick={handleClearSavedWork}
+                                disabled={!hasSavedData}
+                                className="px-3 py-1 flex items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:cursor-not-allowed text-white font-bold rounded-md shadow-md text-sm"
+                            >
+                                <ClearIcon /> <span className="ml-1.5">초기화</span>
+                            </button>
                         </div>
-                         <button
-                            onClick={handleExportImage}
-                            disabled={!previewHtml || isExporting}
-                            className="px-4 py-2 w-36 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out"
-                        >
-                            {isExporting ? '저장 중...' : '이미지로 저장'}
-                        </button>
-                    </div>
-                )}
-            </header>
 
-             <div className="flex justify-center gap-4 border-b border-gray-700 pb-4">
-                <MainTabButton tabName="builder">🚀 Page Editor</MainTabButton>
-                <MainTabButton tabName="references">📚 레퍼런스</MainTabButton>
-                <MainTabButton tabName="benchmark">🔬 Benchmarking</MainTabButton>
-                <MainTabButton tabName="knowledge">🧠 지식 베이스</MainTabButton>
-            </div>
-            
-            {activeMainTab === 'builder' && renderBuilder()}
-            {activeMainTab === 'references' && <div className="mt-6 h-[calc(100vh-230px)]"><ReferenceLibraryPanel references={references} onLoad={handleLoadReference} onDelete={handleDeleteReference} /></div>}
-            {activeMainTab === 'benchmark' && <div className="mt-6 h-[calc(100vh-230px)]"><BenchmarkingPanel /></div>}
-            {activeMainTab === 'knowledge' && <div className="mt-6 h-[calc(100vh-230px)]"><KnowledgeBasePanel /></div>}
-
-        </div>
-    );
-}
+                        <div className="bg-gray-700 p-2 rounded-lg flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="checkbox" 
+                                    id="split-image-checkbox"
+                                    checked={isSplitEnabled}
+                                    onChange={(e) => setIsSplitEnabled(e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-500 rounded focus:ring-indigo-500"
+                                />
