@@ -1,32 +1,5 @@
 // The new, simplified type system for the Feedback Studio
 
-// Types for AI Feedback Feature
-export interface AiSuggestion {
-  category: string;
-  suggestion: string;
-}
-
-export type AiFeedbackResponse = AiSuggestion[];
-
-// Type for Knowledge Base Feature
-export interface Insight {
-  id: string;
-  title: string;
-  category: string;
-  content: string;
-  tags: string[];
-}
-
-// Type for Reference Library Feature
-export interface Reference {
-  id: string;
-  name: string;
-  description: string;
-  thumbnailDataUrl: string; // base64 data URL
-  html: string;
-  json: string;
-}
-
 // Types for HTML Generation from JSON (New Design System)
 
 export interface BaseBlock {
@@ -177,4 +150,16 @@ export interface ProductPlan {
   project: string;
   description: string;
   blocks: Block[];
+}
+
+
+// Types for AI Feedback Studio
+
+export interface AiSuggestion {
+  category: '카피라이팅' | '디자인/레이아웃' | '사용자 경험(UX)' | '콘텐츠' | '연출 사진 제안' | '기타';
+  suggestion: string;
+}
+
+export interface AiFeedbackResponse {
+  suggestions: AiSuggestion[];
 }

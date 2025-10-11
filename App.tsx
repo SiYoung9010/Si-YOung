@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { getAiFeedback, getAiSuggestionsFromNotes, getBenchmarkingAnalysis, applyAiSuggestion, generateJsonFromImage, insertImageIntoHtml, editImageWithAi, generateImageFromSuggestion } from './services/aiService';
+import { getAiFeedback, getAiSuggestionsFromNotes, applyAiSuggestion, generateJsonFromImage, insertImageIntoPlan, editImageWithAi, generateImageFromSuggestion, generateJsonFromHtml } from './services/aiService';
 import { generateHtml } from './services/htmlGenerator';
-import { INITIAL_HTML_INPUT, INITIAL_JSON_INPUT } from './constants';
-import type { AiSuggestion, AiFeedbackResponse, Insight, Reference } from './types';
+import { INITIAL_JSON_INPUT, INITIAL_HTML_INPUT } from './constants';
+import type { AiSuggestion, ProductPlan, Block } from './types';
 
 // Let TypeScript know about the global functions from CDNs
 declare const html2canvas: any;
@@ -16,38 +16,18 @@ const FONT_OPTIONS = [
   'IBM Plex Sans KR',
 ];
 
-const LoadIcon = () => (
+const MaximizeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
-        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+        <path fillRule="evenodd" d="M5.828 10.172a.5.5 0 0 0-.707 0l-4.096 4.096V11.5a.5.5 0 0 0-1 0v3.975a.5.5 0 0 0 .5.5H4.5a.5.5 0 0 0 0-1H1.732l4.096-4.096a.5.5 0 0 0 0-.707zm4.344-4.344a.5.5 0 0 0 0 .707l4.096 4.096H11.5a.5.5 0 0 0 0 1h3.975a.5.5 0 0 0 .5-.5V7.5a.5.5 0 0 0-1 0v2.768l-4.096-4.096a.5.5 0 0 0-.707 0zM1.025 5.828a.5.5 0 0 0 .707 0l4.096-4.096V4.5a.5.5 0 0 0 1 0V.525a.5.5 0 0 0-.5-.5H1.5a.5.5 0 0 0 0 1h2.768L.172 5.121a.5.5 0 0 0 0 .707zm13.95 0a.5.5 0 0 0 0-.707L10.879.172H13.5a.5.5 0 0 0 0-1H9.525a.5.5 0 0 0-.5.5V4.5a.5.5 0 0 0 1 0V1.732l4.096 4.096a.5.5 0 0 0 .707 0z"/>
     </svg>
 );
 
-const ClearIcon = () => (
+const MinimizeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-        <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        <path fillRule="evenodd" d="M.172 15.828a.5.5 0 0 0 .707 0l4.096-4.096V14.5a.5.5 0 1 0 1 0v-3.975a.5.5 0 0 0-.5-.5H1.5a.5.5 0 0 0 0 1h2.768L.172 15.121a.5.5 0 0 0 0 .707zM10.172 5.828a.5.5 0 0 0 0-.707L6.075.172H8.5a.5.5 0 0 0 0-1H4.525a.5.5 0 0 0-.5.5V4.5a.5.5 0 0 0 1 0V1.732l4.096 4.096a.5.5 0 0 0 .707 0zm.707-5.656a.5.5 0 0 0-.707 0L6.075 4.268V1.5a.5.5 0 0 0-1 0v3.975a.5.5 0 0 0 .5.5H9.5a.5.5 0 0 0 0-1H6.732l4.096-4.096a.5.5 0 0 0 0-.707zM15.828.172a.5.5 0 0 0-.707 0l-4.096 4.096V1.5a.5.5 0 1 0-1 0v3.975a.5.5 0 0 0 .5.5H14.5a.5.5 0 0 0 0-1h-2.768l4.096-4.096a.5.5 0 0 0 0-.707z"/>
     </svg>
 );
 
-const CopyIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-        <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
-    </svg>
-);
-
-const ExpandIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1h-4zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zM.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5z"/>
-    </svg>
-);
-
-const CollapseIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M5.5 1a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 5 1.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 0 3.5 1h-2a.5.5 0 0 1 0-1h2zM1 5.5a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 1 0-1h2A1.5 1.5 0 0 1 1.5 5v2a.5.5 0 0 1-1 0v-2zm14 0a.5.5 0 0 0 .5-.5v-2a.5.5 0 0 1 1 0v2A1.5 1.5 0 0 1 14.5 5h-2a.5.5 0 0 1 0-1h2zM5 14.5a.5.5 0 0 0 .5.5h2a.5.5 0 0 1 0 1h-2A1.5 1.5 0 0 1 5 14.5v-2a.5.5 0 0 1 1 0v2zm5 0a.5.5 0 0 0 .5.5h2a.5.5 0 0 1 0 1h-2a-1.5 1.5 0 0 1-1.5-1.5v-2a.5.5 0 0 1 1 0v2z"/>
-    </svg>
-);
 
 const CodeInput: React.FC<{
     id: string;
@@ -72,12 +52,11 @@ const CodeInput: React.FC<{
 
 const PreviewPanel: React.FC<{
     html: string;
-    isLiveEditEnabled: boolean;
     isFeedbackModeEnabled: boolean;
-    onHtmlChange: (newHtml: string) => void;
     onElementFeedback: (feedback: string) => void;
-    onImageFeedback: (src: string, target: HTMLImageElement) => void;
-}> = ({ html, isLiveEditEnabled, isFeedbackModeEnabled, onHtmlChange, onElementFeedback, onImageFeedback }) => {
+    onImageFeedback: (src: string) => void;
+    onImageClick: (src: string) => void;
+}> = ({ html, isFeedbackModeEnabled, onElementFeedback, onImageFeedback, onImageClick }) => {
     const iframeRef = React.useRef<HTMLIFrameElement>(null);
     const [feedbackPopup, setFeedbackPopup] = useState({ visible: false, x: 0, y: 0, targetElement: null as HTMLElement | null });
     const [feedbackText, setFeedbackText] = useState('');
@@ -132,7 +111,7 @@ const PreviewPanel: React.FC<{
             }
         };
 
-        const clickHandler = (e: MouseEvent) => {
+        const feedbackClickHandler = (e: MouseEvent) => {
             e.preventDefault();
             e.stopPropagation();
             removeHighlight();
@@ -140,7 +119,7 @@ const PreviewPanel: React.FC<{
             if (!target || target.tagName === 'BODY' || target.tagName === 'HTML') return;
 
             if (target.tagName === 'IMG') {
-                onImageFeedback((target as HTMLImageElement).src, target as HTMLImageElement);
+                onImageFeedback((target as HTMLImageElement).src);
             } else {
                 const rect = target.getBoundingClientRect();
                 const iframeRect = iframe.getBoundingClientRect();
@@ -153,54 +132,52 @@ const PreviewPanel: React.FC<{
             }
         };
         
-        const handleInput = () => { // For live edit
-            const newHtml = iframe.contentWindow?.document?.documentElement?.outerHTML;
-            if (newHtml) {
-                onHtmlChange(newHtml);
-            }
-        };
-
         const setupIframe = () => {
             if (!iframe.contentWindow || !iframe.contentDocument) return;
             const doc = iframe.contentDocument;
             if (!doc?.body) return;
-
-            // Manage contentEditable state for live edit
-            doc.body.contentEditable = isLiveEditEnabled.toString();
-            if ((doc.body as any)._handleInput) {
-                doc.body.removeEventListener('input', (doc.body as any)._handleInput);
+            
+            // Cleanup listeners from previous renders
+            if ((doc.body as any)._feedbackListeners) {
+                doc.body.removeEventListener('mouseover', (doc.body as any)._feedbackMouseover);
+                doc.body.removeEventListener('mouseout', (doc.body as any)._feedbackMouseout);
+                doc.body.removeEventListener('click', (doc.body as any)._feedbackClick);
+                (doc.body as any)._feedbackListeners = false;
             }
-            if (isLiveEditEnabled) {
-                (doc.body as any)._handleInput = handleInput;
-                doc.body.addEventListener('input', handleInput);
+            if ((doc.body as any)._viewImageClick) {
+                 doc.body.removeEventListener('click', (doc.body as any)._viewImageClick);
             }
+             Array.from(doc.querySelectorAll('img')).forEach(img => img.style.cursor = 'default');
 
             // Visual indicators for modes
             let outlineStyle = 'none';
-            if (isLiveEditEnabled) outlineStyle = '2px solid #3b82f6';
-            else if (isFeedbackModeEnabled) outlineStyle = '2px solid #16a34a';
+            if (isFeedbackModeEnabled) outlineStyle = '2px solid #16a34a';
             doc.documentElement.style.outline = outlineStyle;
             doc.documentElement.style.outlineOffset = '-2px';
             
-            doc.body.style.cursor = isFeedbackModeEnabled ? 'crosshair' : 'default';
-
-            // Clean up old feedback listeners before attaching new ones
-            if ((doc.body as any)._feedbackListeners) {
-                 doc.body.removeEventListener('mouseover', (doc.body as any)._feedbackMouseover);
-                 doc.body.removeEventListener('mouseout', (doc.body as any)._feedbackMouseout);
-                 doc.body.removeEventListener('click', (doc.body as any)._feedbackClick);
-                 (doc.body as any)._feedbackListeners = false;
-            }
-
-            // Manage event listeners for feedback mode
+            // Manage event listeners based on mode
             if (isFeedbackModeEnabled) {
+                doc.body.style.cursor = 'crosshair';
                 (doc.body as any)._feedbackMouseover = mouseoverHandler;
                 (doc.body as any)._feedbackMouseout = removeHighlight;
-                (doc.body as any)._feedbackClick = clickHandler;
+                (doc.body as any)._feedbackClick = feedbackClickHandler;
                 (doc.body as any)._feedbackListeners = true;
                 doc.body.addEventListener('mouseover', mouseoverHandler);
                 doc.body.addEventListener('mouseout', removeHighlight);
-                doc.body.addEventListener('click', clickHandler);
+                doc.body.addEventListener('click', feedbackClickHandler);
+            } else {
+                 doc.body.style.cursor = 'default';
+                 const viewImageClickHandler = (e: MouseEvent) => {
+                    const target = e.target as HTMLElement;
+                    if (target.tagName === 'IMG') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onImageClick((target as HTMLImageElement).src);
+                    }
+                };
+                (doc.body as any)._viewImageClick = viewImageClickHandler;
+                doc.body.addEventListener('click', viewImageClickHandler);
+                Array.from(doc.querySelectorAll('img')).forEach(img => img.style.cursor = 'zoom-in');
             }
         };
 
@@ -217,20 +194,18 @@ const PreviewPanel: React.FC<{
         return () => {
             if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
                 const doc = iframe.contentDocument;
-                 if ((doc.body as any)._handleInput) {
-                    doc.body.removeEventListener('input', (doc.body as any)._handleInput);
-                 }
                  if ((doc.body as any)._feedbackListeners) {
                     doc.body.removeEventListener('mouseover', (doc.body as any)._feedbackMouseover);
                     doc.body.removeEventListener('mouseout', (doc.body as any)._feedbackMouseout);
                     doc.body.removeEventListener('click', (doc.body as any)._feedbackClick);
                  }
+                 if ((doc.body as any)._viewImageClick) doc.body.removeEventListener('click', (doc.body as any)._viewImageClick);
             }
             if (iframe) {
                 iframe.onload = null;
             }
         };
-    }, [html, isLiveEditEnabled, isFeedbackModeEnabled, onHtmlChange, onElementFeedback, onImageFeedback]);
+    }, [html, isFeedbackModeEnabled, onElementFeedback, onImageFeedback, onImageClick]);
 
     return (
         <div className="h-full bg-white border border-gray-600 rounded-b-lg overflow-hidden relative">
@@ -289,9 +264,6 @@ const AiFeedbackPanel: React.FC<{
     applyingSuggestionIndex: number | null;
 }> = ({ feedback, isLoading, error, onApplySuggestion, onGenerateImage, onInsertGeneratedImage, onEditGeneratedImage, applyingSuggestionIndex }) => {
     
-    // FIX: The conditional return in the original `useMemo` (`if (!feedback) return {}`) caused it to have a union return type.
-    // This confused TypeScript's inference for `Object.entries`, leading to `suggestions` being typed as `unknown`.
-    // By reducing over `(feedback || [])`, we ensure a consistent `Record` type is always returned, fixing the error.
     const groupedFeedback = useMemo(() => {
         return (feedback || []).reduce((acc, item, index) => {
             const itemWithIndex = { ...item, originalIndex: index };
@@ -408,253 +380,6 @@ const UserFeedbackPanel: React.FC<{ notes: string; onChange: (notes: string) => 
         </button>
     </div>
 );
-
-
-const BenchmarkingPanel: React.FC<{}> = () => {
-    const [image, setImage] = useState<string | null>(null);
-    const [imageName, setImageName] = useState<string>('');
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [analysis, setAnalysis] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-
-    const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files && event.target.files[0]) {
-            const file = event.target.files[0];
-            setImageName(file.name);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64String = (reader.result as string).split(',')[1];
-                setImage(base64String);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleAnalyze = async () => {
-        if (!image) {
-            setError('Please upload an image first.');
-            return;
-        }
-        setIsLoading(true);
-        setError(null);
-        setAnalysis(null);
-        try {
-            const result = await getBenchmarkingAnalysis(image);
-            setAnalysis(result);
-        } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : 'An unknown AI error occurred.';
-            setError(`Error getting analysis: ${errorMessage}`);
-            console.error(e);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const renderAnalysis = () => {
-        if (!analysis) return null;
-        return (
-            <div className="prose prose-invert max-w-none prose-p:text-gray-300 prose-h2:text-emerald-300 prose-h3:text-blue-300"
-                 dangerouslySetInnerHTML={{ __html: analysis.replace(/\n/g, '<br />') }} />
-        );
-    };
-
-    return (
-        <div className="h-full overflow-y-auto p-4 bg-gray-800 border border-gray-600 rounded-lg">
-            {!analysis && (
-                <div className="flex flex-col items-center justify-center h-full">
-                    <div className="w-full max-w-lg">
-                         <label
-                            htmlFor="image-upload"
-                            className="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-colors"
-                        >
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                <svg className="w-8 h-8 mb-4 text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
-                                <p className="mb-2 text-sm text-gray-400"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                                <p className="text-xs text-gray-500">PNG, JPG, or GIF of a competitor's page</p>
-                            </div>
-                            <input id="image-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                        </label>
-                        {imageName && <p className="text-center text-sm text-gray-400 mt-2">Selected: {imageName}</p>}
-                    </div>
-
-                    <button 
-                        onClick={handleAnalyze}
-                        disabled={!image || isLoading}
-                        className="mt-6 w-48 h-12 flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-wait text-white font-bold rounded-lg shadow-lg"
-                    >
-                         {isLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : '🔬 이 디자인 분석하기'}
-                    </button>
-                    {error && <p className="text-red-400 mt-4">{error}</p>}
-                </div>
-            )}
-            {analysis && (
-                <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                        <h3 className="text-lg font-semibold text-gray-200 mb-3">Uploaded Image</h3>
-                        <img src={`data:image/png;base64,${image}`} alt="Benchmark" className="rounded-lg border border-gray-600" />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-gray-200 mb-3">AI Benchmarking Report</h3>
-                        {isLoading ? (
-                            <div className="flex items-center justify-center h-full text-gray-400">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-3"></div>
-                                AI가 분석 중입니다...
-                            </div>
-                        ) : (
-                            renderAnalysis()
-                        )}
-                        <button onClick={() => { setAnalysis(null); setImage(null); setImageName('');}} className="mt-6 px-4 py-2 bg-gray-600 text-white rounded-lg">Analyze Another</button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const KnowledgeBasePanel: React.FC<{}> = () => {
-    const [insights, setInsights] = useState<Insight[]>([]);
-    const [title, setTitle] = useState('');
-    const [category, setCategory] = useState('');
-    const [content, setContent] = useState('');
-    const [tags, setTags] = useState('');
-
-    useEffect(() => {
-        try {
-            const savedInsights = localStorage.getItem('knowledgeBaseInsights');
-            if (savedInsights) {
-                setInsights(JSON.parse(savedInsights));
-            }
-        } catch (error) {
-            console.error("Failed to load insights from localStorage", error);
-        }
-    }, []);
-
-    const handleSaveInsight = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!title.trim() || !content.trim()) {
-            alert('Title and Content are required.');
-            return;
-        }
-        const newInsight: Insight = {
-            id: Date.now().toString(),
-            title,
-            category,
-            content,
-            tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
-        };
-
-        const updatedInsights = [...insights, newInsight];
-        setInsights(updatedInsights);
-
-        try {
-            localStorage.setItem('knowledgeBaseInsights', JSON.stringify(updatedInsights));
-        } catch (error) {
-            console.error("Failed to save insights to localStorage", error);
-        }
-        
-        setTitle('');
-        setCategory('');
-        setContent('');
-        setTags('');
-    };
-
-    const handleDeleteInsight = (id: string) => {
-        const updatedInsights = insights.filter(insight => insight.id !== id);
-        setInsights(updatedInsights);
-        try {
-            localStorage.setItem('knowledgeBaseInsights', JSON.stringify(updatedInsights));
-        } catch (error) {
-            console.error("Failed to save insights to localStorage", error);
-        }
-    };
-    
-    return (
-        <div className="h-full grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-800 border border-gray-600 rounded-lg">
-            <div className="flex flex-col space-y-4">
-                <h2 className="text-xl font-bold text-emerald-300">새로운 인사이트 추가</h2>
-                <form onSubmit={handleSaveInsight} className="space-y-4">
-                    <div>
-                        <label htmlFor="insight-title" className="block text-sm font-medium text-gray-300 mb-1">Title</label>
-                        <input id="insight-title" type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" required />
-                    </div>
-                    <div>
-                        <label htmlFor="insight-category" className="block text-sm font-medium text-gray-300 mb-1">Category</label>
-                        <input id="insight-category" type="text" value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-                    <div>
-                        <label htmlFor="insight-content" className="block text-sm font-medium text-gray-300 mb-1">Content</label>
-                        <textarea id="insight-content" value={content} onChange={e => setContent(e.target.value)} rows={6} className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-2 resize-none focus:ring-blue-500 focus:border-blue-500" required></textarea>
-                    </div>
-                    <div>
-                        <label htmlFor="insight-tags" className="block text-sm font-medium text-gray-300 mb-1">Tags (comma-separated)</label>
-                        <input id="insight-tags" type="text" value={tags} onChange={e => setTags(e.target.value)} className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-                    <button type="submit" className="w-full h-12 flex items-center justify-center bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg shadow-lg">
-                        Save Insight
-                    </button>
-                </form>
-            </div>
-
-            <div className="flex flex-col">
-                <h2 className="text-xl font-bold text-emerald-300 mb-4">저장된 인사이트</h2>
-                <div className="overflow-y-auto h-[calc(100vh-350px)] space-y-4 pr-2">
-                    {insights.length === 0 ? (
-                        <p className="text-gray-400">No insights saved yet.</p>
-                    ) : (
-                        [...insights].reverse().map(insight => (
-                            <div key={insight.id} className="bg-gray-700 p-4 rounded-lg relative">
-                                <button onClick={() => handleDeleteInsight(insight.id)} className="absolute top-2 right-2 text-2xl font-bold text-gray-400 hover:text-red-400 leading-none">&times;</button>
-                                <h3 className="font-bold text-lg text-blue-300">{insight.title}</h3>
-                                {insight.category && <p className="text-sm text-gray-400 mb-2">Category: {insight.category}</p>}
-                                <p className="text-gray-200 whitespace-pre-wrap">{insight.content}</p>
-                                {insight.tags.length > 0 && (
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        {insight.tags.map(tag => (
-                                            <span key={tag} className="bg-gray-600 text-xs text-gray-300 px-2 py-1 rounded-full">{tag}</span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const ReferenceLibraryPanel: React.FC<{
-    references: Reference[];
-    onLoad: (reference: Reference) => void;
-    onDelete: (id: string) => void;
-}> = ({ references, onLoad, onDelete }) => {
-    return (
-        <div className="h-full overflow-y-auto p-4 bg-gray-800 border border-gray-600 rounded-lg">
-            <h2 className="text-2xl font-bold text-emerald-300 mb-6">레퍼런스 라이브러리</h2>
-            {references.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-gray-500">
-                    <p>저장된 레퍼런스가 없습니다. 페이지 에디터에서 "레퍼런스로 저장" 버튼을 눌러 추가하세요.</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {[...references].reverse().map(ref => (
-                        <div key={ref.id} className="bg-gray-700 rounded-lg shadow-lg flex flex-col overflow-hidden">
-                            <img src={ref.thumbnailDataUrl} alt={ref.name} className="w-full h-48 object-cover object-top border-b border-gray-600" />
-                            <div className="p-4 flex flex-col flex-grow">
-                                <h3 className="text-lg font-bold text-blue-300 truncate">{ref.name}</h3>
-                                <p className="text-sm text-gray-400 mt-1 flex-grow">{ref.description}</p>
-                                <div className="flex gap-2 mt-4">
-                                    <button onClick={() => onLoad(ref)} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md text-sm">불러오기</button>
-                                    <button onClick={() => onDelete(ref.id)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-md text-sm">삭제</button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
 
 interface ImageFile {
     base64: string;
@@ -785,8 +510,30 @@ const ImageEditModal: React.FC<{
     );
 };
 
+const ImageFullScreenModal: React.FC<{ src: string; onClose: () => void; }> = ({ src, onClose }) => {
+    return (
+        <div 
+            className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[100]"
+            onClick={onClose}
+        >
+            <button 
+                className="absolute top-4 right-4 text-white text-5xl font-bold"
+                onClick={onClose}
+                aria-label="Close full screen image view"
+            >
+                &times;
+            </button>
+            <img 
+                src={src} 
+                alt="Full screen view" 
+                className="max-w-[95vw] max-h-[95vh] object-contain"
+                onClick={(e) => e.stopPropagation()} // Prevents closing modal when clicking image
+            />
+        </div>
+    );
+};
 
-type ActiveMainTab = 'builder' | 'benchmark' | 'knowledge' | 'references';
+
 type ActiveBuilderTab = 'preview' | 'feedback' | 'notes';
 type ActiveInputTab = 'html' | 'json' | 'image';
 
@@ -800,28 +547,32 @@ interface EditingGeneratedImageState {
     src: string;
 }
 
-/**
- * Fetches a resource and returns its content as a Blob URL.
- * More memory-efficient than Data URLs for binary assets.
- */
 const fetchAsBlobUrl = async (url: string): Promise<string> => {
-    const response = await fetch(url, { mode: 'cors' });
-    if (!response.ok) {
-        // Attempt a fetch without cors for opaque responses, though this has limitations
-        const noCorsResponse = await fetch(url, { mode: 'no-cors' });
-        if(noCorsResponse.ok || noCorsResponse.type === 'opaque') {
-             const blob = await noCorsResponse.blob();
-             return URL.createObjectURL(blob);
+    try {
+        const response = await fetch(url, { mode: 'cors' });
+        if (!response.ok) {
+            throw new Error(`CORS fetch failed: ${response.statusText}`);
         }
-      throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+    } catch (e) {
+        console.warn(`CORS fetch for ${url} failed, trying proxy. Error: ${e}`);
+        // Fallback to a simple proxy if CORS fails
+        const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
+        try {
+            const response = await fetch(proxyUrl);
+             if (!response.ok) {
+                throw new Error(`Proxy fetch failed: ${response.statusText}`);
+            }
+            const blob = await response.blob();
+            return URL.createObjectURL(blob);
+        } catch (proxyErr) {
+            console.error(`Proxy fetch also failed for ${url}:`, proxyErr);
+            throw new Error(`Failed to fetch ${url} with and without proxy.`);
+        }
     }
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
 };
 
-/**
- * Parses CSS text, finds all url() declarations, and replaces them with Blob URLs.
- */
 const inlineCssUrls = async (cssText: string, baseUrl: string): Promise<string> => {
     const urlRegex = /url\((['"]?)(.*?)\1\)/g;
     const promises: Promise<void>[] = [];
@@ -851,17 +602,10 @@ const inlineCssUrls = async (cssText: string, baseUrl: string): Promise<string> 
 };
 
 
-/**
- * A robust function to inline all assets within a given HTML document.
- * This is crucial for html2canvas to avoid "tainted canvas" errors.
- * @param doc The document to process.
- * @param setNotification A function to update the UI with progress.
- */
 const inlineAllAssets = async (
     doc: Document,
     setNotification: (notification: { message: string; type: 'info' | 'error' | 'success' } | null) => void
 ) => {
-    // 1. Inline all <img> tags
     setNotification({ message: '이미지 리소스 변환 중... (1/3)', type: 'info' });
     const images = Array.from(doc.querySelectorAll('img'));
     await Promise.all(
@@ -879,7 +623,6 @@ const inlineAllAssets = async (
       })
     );
   
-    // 2. Inline all <link rel="stylesheet"> and their nested assets (fonts, images)
     setNotification({ message: 'CSS 및 폰트 변환 중... (2/3)', type: 'info' });
     const stylesheets = Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'));
     await Promise.all(
@@ -901,7 +644,6 @@ const inlineAllAssets = async (
         })
     );
     
-    // 3. Inline all style attributes with background images
     const elementsWithStyle = Array.from(doc.querySelectorAll<HTMLElement>('[style*="background-image"]'));
     await Promise.all(
       elementsWithStyle.map(async (el) => {
@@ -918,20 +660,42 @@ const inlineAllAssets = async (
     );
 };
 
+const recursiveFindAndReplace = (obj: any, oldSrc: string, newSrc: string): any => {
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
+    }
+
+    if (Array.isArray(obj)) {
+        return obj.map(item => recursiveFindAndReplace(item, oldSrc, newSrc));
+    }
+
+    const newObj: { [key: string]: any } = {};
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            if ((key === 'src' || key === 'imgSrc' || key === 'videoUrl') && obj[key] === oldSrc) {
+                newObj[key] = newSrc;
+            } else {
+                newObj[key] = recursiveFindAndReplace(obj[key], oldSrc, newSrc);
+            }
+        }
+    }
+    return newObj;
+};
+
 
 export default function App() {
-    const [htmlInput, setHtmlInput] = useState<string>(INITIAL_HTML_INPUT);
-    const [jsonInput, setJsonInput] = useState<string>(INITIAL_JSON_INPUT);
+    const [pagePlan, setPagePlan] = useState<ProductPlan | null>(null);
+    const [jsonInput, setJsonInput] = useState<string>('');
     const [previewHtml, setPreviewHtml] = useState<string>('');
-    const [previousHtmlInput, setPreviousHtmlInput] = useState<string | null>(null);
+    const [previousPagePlan, setPreviousPagePlan] = useState<ProductPlan | null>(null);
+    const [htmlForJsonConversion, setHtmlForJsonConversion] = useState<string>(INITIAL_HTML_INPUT);
     
-    const [activeMainTab, setActiveMainTab] = useState<ActiveMainTab>('builder');
     const [activeBuilderTab, setActiveBuilderTab] = useState<ActiveBuilderTab>('preview');
-    const [activeInputTab, setActiveInputTab] = useState<ActiveInputTab>('json');
+    const [activeInputTab, setActiveInputTab] = useState<ActiveInputTab>('html');
 
     const [error, setError] = useState<string | null>(null);
     const [jsonError, setJsonError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isConverting, setIsConverting] = useState(false);
     
     const [aiFeedback, setAiFeedback] = useState<DisplaySuggestion[] | null>(null);
     const [isFeedbackLoading, setIsFeedbackLoading] = useState<boolean>(false);
@@ -944,10 +708,7 @@ export default function App() {
     const [splitHeight, setSplitHeight] = useState<number>(8000);
     const [isExporting, setIsExporting] = useState<boolean>(false);
     const [exportScale, setExportScale] = useState<number>(2);
-
-    const [references, setReferences] = useState<Reference[]>([]);
     
-    const [isLiveEditEnabled, setIsLiveEditEnabled] = useState<boolean>(false);
     const [isFeedbackModeEnabled, setIsFeedbackModeEnabled] = useState<boolean>(false);
 
     const [selectedFont, setSelectedFont] = useState<string>(FONT_OPTIONS[0]);
@@ -955,123 +716,86 @@ export default function App() {
     const [editingImage, setEditingImage] = useState<EditingImageState>({ visible: false, src: '' });
     const [editingGeneratedImage, setEditingGeneratedImage] = useState<EditingGeneratedImageState | null>(null);
     const [isAiEditingImage, setIsAiEditingImage] = useState(false);
+    
+    const [fullScreenImageSrc, setFullScreenImageSrc] = useState<string | null>(null);
+    const [isPreviewMaximized, setIsPreviewMaximized] = useState<boolean>(false);
 
     const [isSavingWork, setIsSavingWork] = useState<boolean>(false);
-    const [hasSavedData, setHasSavedData] = useState<boolean>(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-
-    const [isExpandedView, setIsExpandedView] = useState<boolean>(false);
 
     useEffect(() => {
         if (notification) {
             const timer = setTimeout(() => {
                 setNotification(null);
-            }, 4000); // Hide after 4 seconds
+            }, 4000);
             return () => clearTimeout(timer);
         }
     }, [notification]);
 
+    // Main effect to load initial data from localStorage or constants
     useEffect(() => {
         try {
-            const savedReferences = localStorage.getItem('pageReferences');
-            if (savedReferences) {
-                setReferences(JSON.parse(savedReferences));
-            }
-        } catch (error) {
-            console.error("Failed to load references from localStorage", error);
-        }
-    }, []);
-
-    const handleUpdatePreview = useCallback(() => {
-        setError(null);
-        setAiFeedback(null); // Clear previous feedback
-        setPreviousHtmlInput(htmlInput);
-        setPreviewHtml(htmlInput);
-        setActiveBuilderTab('preview'); // Switch to preview after updating
-    }, [htmlInput]);
-    
-    const handleGenerateHtml = useCallback(() => {
-        setIsLoading(true);
-        setJsonError(null);
-        setError(null);
-        try {
-            const generated = generateHtml(jsonInput, selectedFont);
-            setPreviousHtmlInput(htmlInput);
-            setHtmlInput(generated);
-            setPreviewHtml(generated);
-            setActiveBuilderTab('preview');
-            setActiveInputTab('html');
-        } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : "An unknown error occurred during HTML generation.";
-            setJsonError(errorMessage);
-            console.error(e);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [jsonInput, htmlInput, selectedFont]);
-    
-    const loadWorkFromLocal = useCallback(() => {
-        try {
-            const savedHtml = localStorage.getItem('savedProductPageHTML');
             const savedJson = localStorage.getItem('savedProductPageJSON');
             const savedFont = localStorage.getItem('savedProductPageFont');
-
-            if (savedHtml && savedJson) {
-                setHtmlInput(savedHtml);
+            
+            if (savedJson) {
                 setJsonInput(savedJson);
-                setPreviewHtml(savedHtml);
-                if (savedFont && FONT_OPTIONS.includes(savedFont)) {
-                    setSelectedFont(savedFont);
-                }
-                setNotification({ message: '저장된 작업을 불러왔습니다.', type: 'info' });
-                return true;
-            }
-            return false;
-        } catch (error) {
-            console.error("Failed to load saved work from localStorage", error);
-            setNotification({ message: '저장된 작업 불러오기 실패.', type: 'error' });
-            return false;
-        }
-    }, []);
-
-
-    useEffect(() => {
-        const savedDataExists = !!localStorage.getItem('savedProductPageHTML');
-        setHasSavedData(savedDataExists);
-
-        if (savedDataExists) {
-            if (window.confirm("저장된 작업이 있습니다. 불러오시겠습니까?")) {
-                loadWorkFromLocal();
+                setTimeout(() => setNotification({ message: '저장된 작업을 불러왔습니다.', type: 'info' }), 100);
+                setActiveInputTab('json');
             } else {
-                handleGenerateHtml();
+                setJsonInput(INITIAL_JSON_INPUT);
+                setHtmlForJsonConversion(INITIAL_HTML_INPUT);
             }
-        } else {
-            handleGenerateHtml();
+            
+            if (savedFont && FONT_OPTIONS.includes(savedFont)) {
+                setSelectedFont(savedFont);
+            }
+        } catch (error) {
+            console.error("Failed to load or parse initial JSON", error);
+            setJsonInput(INITIAL_JSON_INPUT);
+            setHtmlForJsonConversion(INITIAL_HTML_INPUT);
+            setJsonError("저장된 작업 파일을 불러오는데 실패했습니다.");
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     },[]);
 
-    // Automatically regenerate HTML when the font changes
+    // Effect to sync editor content (jsonInput) to the pagePlan object
     useEffect(() => {
-        if (jsonInput) {
-            try {
-                const generated = generateHtml(jsonInput, selectedFont);
-                setHtmlInput(generated);
-                setPreviewHtml(generated);
-                setJsonError(null);
-            } catch (e) {
-                const errorMessage = e instanceof Error ? e.message : "An unknown error occurred during HTML generation.";
-                setJsonError(errorMessage);
-                console.error(e);
+        if (!jsonInput) {
+            setPagePlan(null);
+            setJsonError(null);
+            return;
+        };
+
+        try {
+            const parsedPlan = JSON.parse(jsonInput);
+            setPagePlan(parsedPlan);
+            setJsonError(null);
+        } catch (e) {
+            if (e instanceof SyntaxError) {
+                setJsonError(`JSON 포맷 오류: ${e.message}`);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedFont]);
+    }, [jsonInput]);
+    
+    // Effect to generate HTML whenever the plan or font changes
+    useEffect(() => {
+        if (pagePlan) {
+            try {
+                const generated = generateHtml(pagePlan, selectedFont);
+                setPreviewHtml(generated);
+            } catch(e) {
+                console.error("Error generating HTML from plan", e);
+                setPreviewHtml(`<div style="color: red; padding: 20px;">Error generating preview: ${e instanceof Error ? e.message : 'Unknown error'}</div>`);
+            }
+        } else {
+            setPreviewHtml('');
+        }
+    }, [pagePlan, selectedFont]);
 
 
     const handleGetFeedback = useCallback(async () => {
         if (!previewHtml) {
-            setFeedbackError("Please update the preview first before requesting feedback.");
+            setFeedbackError("Please generate a preview first before requesting feedback.");
             setActiveBuilderTab('feedback');
             return;
         }
@@ -1099,7 +823,7 @@ export default function App() {
     }, [previewHtml]);
 
     const handleApplyMyFeedback = useCallback(async () => {
-        if (!userNotes.trim()) {
+        if (!userNotes.trim() || !pagePlan) {
             alert("Please write some notes first.");
             return;
         }
@@ -1109,7 +833,7 @@ export default function App() {
         setActiveBuilderTab('feedback');
 
         try {
-            const suggestions = await getAiSuggestionsFromNotes(userNotes, htmlInput);
+            const suggestions = await getAiSuggestionsFromNotes(userNotes, pagePlan);
             setAiFeedback(suggestions);
         } catch (e) {
             const errorMessage = e instanceof Error ? e.message : 'An unknown AI error occurred.';
@@ -1118,16 +842,17 @@ export default function App() {
         } finally {
             setIsFeedbackLoading(false);
         }
-    }, [userNotes, htmlInput]);
+    }, [userNotes, pagePlan]);
 
     const handleApplySuggestion = useCallback(async (suggestion: string, index: number) => {
+        if (!pagePlan) return;
         setApplyingSuggestionIndex(index);
         setError(null);
         try {
-            setPreviousHtmlInput(htmlInput);
-            const newHtml = await applyAiSuggestion(htmlInput, suggestion);
-            setHtmlInput(newHtml);
-            setPreviewHtml(newHtml);
+            setPreviousPagePlan(pagePlan);
+            const newPlan = await applyAiSuggestion(pagePlan, suggestion);
+            setPagePlan(newPlan);
+            setJsonInput(JSON.stringify(newPlan, null, 2));
         } catch (e) {
             const errorMessage = e instanceof Error ? e.message : 'An unknown AI error occurred.';
             setError(`Error applying suggestion: ${errorMessage}`);
@@ -1135,15 +860,33 @@ export default function App() {
         } finally {
             setApplyingSuggestionIndex(null);
         }
-    }, [htmlInput]);
+    }, [pagePlan]);
+
+    const handleGenerateJsonFromHtml = useCallback(async () => {
+        setIsConverting(true);
+        setError(null);
+        setJsonError(null);
+        try {
+            const jsonString = await generateJsonFromHtml(htmlForJsonConversion);
+            setJsonInput(jsonString); // This will trigger the useEffect to update pagePlan
+            setActiveInputTab('json');
+            setNotification({ message: 'HTML이 JSON으로 성공적으로 변환되었습니다!', type: 'success' });
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : "An unknown error occurred during JSON generation from HTML.";
+            setError(errorMessage);
+            console.error(e);
+        } finally {
+            setIsConverting(false);
+        }
+    }, [htmlForJsonConversion]);
 
     const handleUndo = useCallback(() => {
-        if (previousHtmlInput !== null) {
-            setHtmlInput(previousHtmlInput);
-            setPreviewHtml(previousHtmlInput);
-            setPreviousHtmlInput(null); // Only allow one level of undo
+        if (previousPagePlan !== null) {
+            setPagePlan(previousPagePlan);
+            setJsonInput(JSON.stringify(previousPagePlan, null, 2));
+            setPreviousPagePlan(null);
         }
-    }, [previousHtmlInput]);
+    }, [previousPagePlan]);
 
     const handleExportImage = useCallback(async () => {
         if (!previewHtml) {
@@ -1157,7 +900,6 @@ export default function App() {
         const tempIframe = document.createElement('iframe');
     
         try {
-            // Step 1: Render the HTML in an off-screen iframe to get a live DOM.
             tempIframe.style.position = 'absolute';
             tempIframe.style.left = '-9999px';
             const previewIframe = document.getElementById('preview-iframe') as HTMLIFrameElement;
@@ -1167,7 +909,6 @@ export default function App() {
             
             document.body.appendChild(tempIframe);
             
-            // Using srcdoc to inject content
             tempIframe.srcdoc = previewHtml;
             await new Promise<void>((resolve, reject) => {
                 let resolved = false;
@@ -1181,16 +922,13 @@ export default function App() {
                 };
             });
     
-            // Step 2: Inline all assets within the iframe's document.
             if (!tempIframe.contentDocument) {
                 throw new Error("Temporary iframe content document not available.");
             }
             await inlineAllAssets(tempIframe.contentDocument, setNotification);
             
-            // Allow some time for fonts and images to fully render after inlining
             await new Promise(resolve => setTimeout(resolve, 500));
     
-            // Step 3: Capture the now "clean" iframe content.
             setNotification({ message: '페이지를 캡처합니다... (3/3)', type: 'info' });
             const elementToCapture = tempIframe.contentDocument.documentElement;
             const canvas = await html2canvas(elementToCapture, {
@@ -1202,7 +940,6 @@ export default function App() {
             });
             const dataUrl = canvas.toDataURL('image/png');
     
-            // Step 4: Process and download the final image(s).
             if (!isSplitEnabled) {
                 const link = document.createElement('a');
                 link.href = dataUrl;
@@ -1261,13 +998,12 @@ export default function App() {
     }, [previewHtml, isSplitEnabled, splitHeight, exportScale]);
 
     const handleSaveWorkToLocal = useCallback(() => {
+        if (!pagePlan) return;
         setIsSavingWork(true);
         setNotification(null);
         try {
-            localStorage.setItem('savedProductPageHTML', htmlInput);
-            localStorage.setItem('savedProductPageJSON', jsonInput);
+            localStorage.setItem('savedProductPageJSON', JSON.stringify(pagePlan, null, 2));
             localStorage.setItem('savedProductPageFont', selectedFont);
-            setHasSavedData(true);
             setNotification({ message: '현재 작업을 브라우저에 저장했습니다!', type: 'success' });
         } catch (err) {
             console.error('Error saving work to localStorage:', err);
@@ -1278,42 +1014,8 @@ export default function App() {
         } finally {
             setIsSavingWork(false);
         }
-    }, [htmlInput, jsonInput, selectedFont]);
-
-    const handleClearSavedWork = useCallback(() => {
-        if (window.confirm("정말로 저장된 작업을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
-            try {
-                localStorage.removeItem('savedProductPageHTML');
-                localStorage.removeItem('savedProductPageJSON');
-                localStorage.removeItem('savedProductPageFont');
-                setHasSavedData(false);
-                setNotification({ message: '저장된 데이터가 삭제되었습니다.', type: 'info' });
-            } catch (err) {
-                 console.error('Error clearing saved work from localStorage:', err);
-                 setNotification({ message: '데이터 삭제 실패.', type: 'error' });
-            }
-        }
-    }, []);
+    }, [pagePlan, selectedFont]);
     
-    const handleLoadReference = (reference: Reference) => {
-        if (window.confirm("현재 작업 내용이 사라집니다. 레퍼런스를 불러오시겠습니까? (This will replace your current work. Load reference?)")) {
-            setHtmlInput(reference.html);
-            setJsonInput(reference.json);
-            setPreviewHtml(reference.html);
-            setActiveMainTab('builder');
-            setActiveInputTab('html');
-            setActiveBuilderTab('preview');
-        }
-    };
-
-    const handleDeleteReference = (id: string) => {
-        if (window.confirm("정말로 이 레퍼런스를 삭제하시겠습니까? (Are you sure you want to delete this reference?)")) {
-            const updatedReferences = references.filter(ref => ref.id !== id);
-            setReferences(updatedReferences);
-            localStorage.setItem('pageReferences', JSON.stringify(updatedReferences));
-        }
-    };
-
     const urlToBase64 = useCallback((url: string): Promise<{ base64: string; mimeType: string; }> => {
         return new Promise((resolve, reject) => {
             if (url.startsWith('data:')) {
@@ -1350,6 +1052,7 @@ export default function App() {
     }, []);
     
     const handleApplyInPlaceImageEdit = useCallback(async (prompt: string) => {
+        if (!pagePlan) return;
         setIsAiEditingImage(true);
         setError(null);
         try {
@@ -1357,10 +1060,12 @@ export default function App() {
             const editedBase64 = await editImageWithAi(base64, mimeType, prompt);
             const newDataUrl = `data:image/png;base64,${editedBase64}`;
 
-            setPreviousHtmlInput(htmlInput);
-            const newHtml = htmlInput.replace(editingImage.src, newDataUrl);
-            setHtmlInput(newHtml);
-            setPreviewHtml(newHtml);
+            setPreviousPagePlan(pagePlan);
+            const newPlan = recursiveFindAndReplace(pagePlan, editingImage.src, newDataUrl);
+            
+            setPagePlan(newPlan);
+            setJsonInput(JSON.stringify(newPlan, null, 2));
+
             setEditingImage({ visible: false, src: '' });
 
         } catch (e) {
@@ -1370,7 +1075,7 @@ export default function App() {
         } finally {
             setIsAiEditingImage(false);
         }
-    }, [editingImage.src, htmlInput, urlToBase64]);
+    }, [editingImage.src, pagePlan, urlToBase64]);
 
     const handleGenerateAiImage = useCallback(async (suggestion: string, index: number) => {
         setApplyingSuggestionIndex(index);
@@ -1404,13 +1109,15 @@ export default function App() {
     }, []);
 
     const handleInsertGeneratedImage = useCallback(async (suggestion: string, index: number, generatedImage: string) => {
+        if (!pagePlan) return;
         setApplyingSuggestionIndex(index);
         setError(null);
         try {
-            setPreviousHtmlInput(htmlInput);
-            const newHtml = await insertImageIntoHtml(htmlInput, generatedImage, suggestion);
-            setHtmlInput(newHtml);
-            setPreviewHtml(newHtml);
+            const { base64 } = await urlToBase64(generatedImage);
+            setPreviousPagePlan(pagePlan);
+            const newPlan = await insertImageIntoPlan(pagePlan, base64, suggestion);
+            setPagePlan(newPlan);
+            setJsonInput(JSON.stringify(newPlan, null, 2));
             setAiFeedback(prev => (prev || []).filter((_, i) => i !== index));
         } catch (e) {
             const errorMessage = e instanceof Error ? e.message : 'An unknown AI error occurred.';
@@ -1419,7 +1126,7 @@ export default function App() {
         } finally {
             setApplyingSuggestionIndex(null);
         }
-    }, [htmlInput]);
+    }, [pagePlan, urlToBase64]);
 
     const handleApplyGeneratedImageEdit = useCallback(async (prompt: string) => {
         if (!editingGeneratedImage) return;
@@ -1451,16 +1158,6 @@ export default function App() {
             setIsAiEditingImage(false);
         }
     }, [editingGeneratedImage, urlToBase64]);
-
-
-    const MainTabButton: React.FC<{ tabName: ActiveMainTab; children: React.ReactNode }> = ({ tabName, children }) => (
-        <button
-            onClick={() => setActiveMainTab(tabName)}
-            className={`px-6 py-2 text-lg font-semibold rounded-md transition-colors ${activeMainTab === tabName ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
-        >
-            {children}
-        </button>
-    );
     
     const InputTabButton: React.FC<{ tabName: ActiveInputTab; children: React.ReactNode }> = ({ tabName, children }) => (
         <button
@@ -1484,164 +1181,6 @@ export default function App() {
         </button>
     );
 
-    const renderBuilder = () => (
-         <main className="flex-grow grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 items-stretch h-[calc(100vh-230px)] mt-6">
-            <div className={`flex flex-col h-full min-w-0 ${isExpandedView ? 'hidden' : ''}`}>
-                <div className="flex border-b border-gray-600">
-                    <InputTabButton tabName="json">{`{} JSON으로 생성`}</InputTabButton>
-                    <InputTabButton tabName="image">{`🖼️ 이미지로 JSON 생성`}</InputTabButton>
-                    <InputTabButton tabName="html">{'</> HTML 직접 입력'}</InputTabButton>
-                </div>
-                <div className="flex-grow mt-[-1px]">
-                    {activeInputTab === 'html' && (
-                        <CodeInput
-                            id="html-input"
-                            label="상세페이지 HTML 입력 (Input)"
-                            value={htmlInput}
-                            onChange={setHtmlInput}
-                            hasError={!!error}
-                            placeholder="Paste your page HTML here..."
-                        />
-                    )}
-                    {activeInputTab === 'json' && (
-                         <CodeInput
-                            id="json-input"
-                            label="상세페이지 JSON 입력 (Input)"
-                            value={jsonInput}
-                            onChange={setJsonInput}
-                            hasError={!!jsonError}
-                            placeholder="Paste your page generation plan here..."
-                        />
-                    )}
-                    {activeInputTab === 'image' && (
-                        <JsonFromImageGenerator 
-                            onJsonGenerated={(json) => {
-                                setJsonInput(json);
-                                setActiveInputTab('json');
-                            }}
-                        />
-                    )}
-                </div>
-            </div>
-
-            <div className={`flex-col items-center justify-center space-y-4 ${isExpandedView ? 'hidden' : 'flex'}`}>
-                {activeInputTab === 'html' ? (
-                    <button
-                        onClick={handleUpdatePreview}
-                        disabled={isLoading}
-                        className="w-48 h-12 flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-wait text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out"
-                    >
-                        {isLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : '▶ 미리보기 업데이트'}
-                    </button>
-                ) : (
-                    <button
-                        onClick={handleGenerateHtml}
-                        disabled={isLoading || activeInputTab === 'image'}
-                        className="w-48 h-12 flex items-center justify-center bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out"
-                    >
-                        {isLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : '▶ HTML 생성하기'}
-                    </button>
-                )}
-
-                <button
-                    onClick={handleUndo}
-                    disabled={previousHtmlInput === null || activeInputTab === 'image'}
-                    className="w-48 h-12 flex items-center justify-center bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out"
-                >
-                    ⏪ 되돌리기
-                </button>
-                <button
-                    onClick={handleGetFeedback}
-                    disabled={isFeedbackLoading || !previewHtml}
-                    className="w-48 h-12 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 disabled:cursor-wait text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out"
-                >
-                    {isFeedbackLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : '🤖 AI 마케팅 피드백'}
-                </button>
-                {error && <div className="text-red-400 text-xs text-center max-w-xs">{error}</div>}
-                {jsonError && <div className="text-red-400 text-xs text-center max-w-xs">{jsonError}</div>}
-            </div>
-
-            <div className={`flex flex-col h-full min-w-0 ${isExpandedView ? 'md:col-span-3' : ''}`}>
-                <div className="flex border-b border-gray-600 items-center">
-                    <BuilderTabButton tabName="preview">Preview</BuilderTabButton>
-                    <BuilderTabButton tabName="feedback">AI 피드백</BuilderTabButton>
-                    <BuilderTabButton tabName="notes">내 피드백</BuilderTabButton>
-                     <div className="ml-auto flex items-center pr-4">
-                        <label htmlFor="live-edit-toggle" className="flex items-center cursor-pointer">
-                            <span className="mr-3 text-sm font-medium text-gray-300">라이브 편집</span>
-                            <div className="relative">
-                                <input 
-                                    type="checkbox" 
-                                    id="live-edit-toggle" 
-                                    className="sr-only peer" 
-                                    checked={isLiveEditEnabled}
-                                    onChange={() => {
-                                        const newMode = !isLiveEditEnabled;
-                                        setIsLiveEditEnabled(newMode);
-                                        if (newMode) setIsFeedbackModeEnabled(false);
-                                    }} 
-                                />
-                                <div className="w-14 h-8 bg-gray-600 rounded-full peer-checked:bg-blue-600"></div>
-                                <div className="absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform peer-checked:translate-x-full"></div>
-                            </div>
-                        </label>
-                         <label htmlFor="feedback-mode-toggle" className="flex items-center cursor-pointer ml-4">
-                            <span className="mr-3 text-sm font-medium text-gray-300">요소 피드백</span>
-                            <div className="relative">
-                                <input 
-                                    type="checkbox" 
-                                    id="feedback-mode-toggle" 
-                                    className="sr-only peer" 
-                                    checked={isFeedbackModeEnabled}
-                                    onChange={() => {
-                                        const newMode = !isFeedbackModeEnabled;
-                                        setIsFeedbackModeEnabled(newMode);
-                                        if (newMode) setIsLiveEditEnabled(false);
-                                    }} 
-                                />
-                                <div className="w-14 h-8 bg-gray-600 rounded-full peer-checked:bg-green-600"></div>
-                                <div className="absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform peer-checked:translate-x-full"></div>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-                <div className="flex-grow mt-[-1px]">
-                   {activeBuilderTab === 'preview' && <PreviewPanel 
-                        html={previewHtml}
-                        isLiveEditEnabled={isLiveEditEnabled}
-                        isFeedbackModeEnabled={isFeedbackModeEnabled}
-                        onHtmlChange={(newHtml) => {
-                           setHtmlInput(newHtml);
-                           setPreviewHtml(newHtml);
-                        }}
-                        onElementFeedback={(feedback) => {
-                            setUserNotes(prev => `${prev}\n${feedback}`.trim());
-                            setActiveBuilderTab('notes');
-                        }}
-                        onImageFeedback={(src) => {
-                            setEditingGeneratedImage(null); // Ensure only one edit mode is active
-                            setEditingImage({ visible: true, src: src });
-                        }}
-                    />}
-                   {activeBuilderTab === 'feedback' && <AiFeedbackPanel 
-                        feedback={aiFeedback} 
-                        isLoading={isFeedbackLoading} 
-                        error={feedbackError} 
-                        onApplySuggestion={handleApplySuggestion}
-                        onGenerateImage={handleGenerateAiImage}
-                        onInsertGeneratedImage={handleInsertGeneratedImage}
-                        onEditGeneratedImage={(index, src) => {
-                            setEditingImage({ visible: true, src });
-                            setEditingGeneratedImage({ index, src });
-                        }}
-                        applyingSuggestionIndex={applyingSuggestionIndex}
-                    />}
-                   {activeBuilderTab === 'notes' && <UserFeedbackPanel notes={userNotes} onChange={setUserNotes} onApply={handleApplyMyFeedback} isApplying={isFeedbackLoading} />}
-                </div>
-            </div>
-        </main>
-    );
-
     return (
         <div className="min-h-screen bg-gray-900 text-white flex flex-col p-4 md:p-8">
             {notification && (
@@ -1653,6 +1192,7 @@ export default function App() {
                     {notification.message}
                 </div>
             )}
+            {fullScreenImageSrc && <ImageFullScreenModal src={fullScreenImageSrc} onClose={() => setFullScreenImageSrc(null)} />}
             <ImageEditModal
                 isOpen={editingImage.visible}
                 imageSrc={editingImage.src}
@@ -1663,65 +1203,204 @@ export default function App() {
                 onGenerate={editingGeneratedImage ? handleApplyGeneratedImageEdit : handleApplyInPlaceImageEdit}
                 isLoading={isAiEditingImage}
             />
-            <header className="flex justify-between items-center mb-6">
+            <header className={`flex justify-between items-center mb-6 ${isPreviewMaximized ? 'hidden' : ''}`}>
                 <div className="text-left">
                      <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
                         상세페이지 피드백 스튜디오
                     </h1>
-                    <p className="text-gray-400 mt-2">Get instant AI-powered feedback to improve your product detail pages.</p>
+                    <p className="text-gray-400 mt-2">AI 기반 피드백으로 상세 페이지를 개선하세요.</p>
                 </div>
-                {activeMainTab === 'builder' && (
-                    <div className="flex items-center gap-4 flex-wrap justify-end">
-                        <button
-                            onClick={() => setIsExpandedView(!isExpandedView)}
-                            className="px-4 py-2 flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg"
-                            title={isExpandedView ? "에디터로 돌아가기" : "미리보기 확대"}
+                <div className="flex items-center gap-4 flex-wrap justify-end">
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="font-selector" className="text-sm text-gray-300 whitespace-nowrap">글꼴:</label>
+                        <select
+                            id="font-selector"
+                            value={selectedFont}
+                            onChange={(e) => setSelectedFont(e.target.value)}
+                            className="w-40 bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-1.5"
                         >
-                            {isExpandedView ? <CollapseIcon /> : <ExpandIcon />}
-                            <span className="ml-2 hidden md:inline">{isExpandedView ? "기본 보기" : "확대 보기"}</span>
-                        </button>
-                        <div className="flex items-center gap-2">
-                            <label htmlFor="font-selector" className="text-sm text-gray-300 whitespace-nowrap">글꼴:</label>
-                            <select
-                                id="font-selector"
-                                value={selectedFont}
-                                onChange={(e) => setSelectedFont(e.target.value)}
-                                className="w-40 bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-1.5"
-                            >
-                                {FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}
-                            </select>
-                        </div>
+                            {FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}
+                        </select>
+                    </div>
+                    <button
+                        onClick={handleSaveWorkToLocal}
+                        disabled={!pagePlan || isSavingWork}
+                        className="px-4 py-2 flex items-center justify-center bg-teal-600 hover:bg-teal-700 disabled:bg-teal-800 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-lg"
+                    >
+                         {isSavingWork ? '저장 중...' : '💾 현재 작업 저장'}
+                    </button>
 
-                        <div className="bg-gray-700 p-1 rounded-lg flex items-center gap-1">
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="checkbox" 
+                            id="split-image-checkbox"
+                            checked={isSplitEnabled}
+                            onChange={(e) => setIsSplitEnabled(e.target.checked)}
+                            className="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-500 rounded focus:ring-indigo-500"
+                        />
+                        <label htmlFor="split-image-checkbox" className="text-sm text-gray-300 whitespace-nowrap">이미지 분할 저장</label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="split-height-input" className="text-sm text-gray-300 whitespace-nowrap">분할 높이(px):</label>
+                        <input 
+                            type="number" 
+                            id="split-height-input"
+                            value={splitHeight}
+                            onChange={(e) => setSplitHeight(Number(e.target.value))}
+                            disabled={!isSplitEnabled}
+                            className="w-24 bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-1.5 disabled:opacity-50"
+                        />
+                    </div>
+                     <div className="flex items-center gap-2">
+                        <label htmlFor="export-scale-selector" className="text-sm text-gray-300 whitespace-nowrap">화질:</label>
+                        <select
+                            id="export-scale-selector"
+                            value={exportScale}
+                            onChange={(e) => setExportScale(Number(e.target.value))}
+                            className="w-28 bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-1.5"
+                        >
+                            <option value="1">1x (표준)</option>
+                            <option value="2">2x (고화질)</option>
+                            <option value="3">3x (초고화질)</option>
+                        </select>
+                    </div>
+                     <button
+                        onClick={handleExportImage}
+                        disabled={!previewHtml || isExporting}
+                        className="px-4 py-2 w-36 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out"
+                    >
+                        {isExporting ? '저장 중...' : '이미지로 저장'}
+                    </button>
+                </div>
+            </header>
+
+            <main className={`flex-grow grid grid-cols-1 ${isPreviewMaximized ? '' : 'md:grid-cols-[1fr_auto_1fr] gap-6'} items-stretch`}>
+                <div className={`flex flex-col h-full min-w-0 ${isPreviewMaximized ? 'hidden' : ''}`}>
+                    <div className="flex border-b border-gray-600">
+                        <InputTabButton tabName="html">{'</> HTML → JSON 변환'}</InputTabButton>
+                        <InputTabButton tabName="json">{`{} JSON 데이터 보기`}</InputTabButton>
+                        <InputTabButton tabName="image">{`🖼️ 이미지로 JSON 생성`}</InputTabButton>
+                    </div>
+                    <div className="flex-grow mt-[-1px]">
+                        {activeInputTab === 'html' && (
+                           <CodeInput
+                                id="html-for-conversion-input"
+                                label="JSON으로 변환할 HTML 입력"
+                                value={htmlForJsonConversion}
+                                onChange={setHtmlForJsonConversion}
+                                hasError={!!error && activeInputTab === 'html'}
+                                placeholder="Paste your page HTML here to convert to JSON..."
+                            />
+                        )}
+                        {activeInputTab === 'json' && (
+                             <CodeInput
+                                id="json-input"
+                                label="상세페이지 JSON 데이터"
+                                value={jsonInput}
+                                onChange={setJsonInput}
+                                hasError={!!jsonError}
+                                placeholder="Your page's JSON data will appear here after converting HTML or generating from an image."
+                            />
+                        )}
+                        {activeInputTab === 'image' && (
+                            <JsonFromImageGenerator 
+                                onJsonGenerated={(json) => {
+                                    setJsonInput(json);
+                                    setActiveInputTab('json');
+                                }}
+                            />
+                        )}
+                    </div>
+                </div>
+
+                <div className={`flex flex-col items-center justify-center space-y-4 ${isPreviewMaximized ? 'hidden' : ''}`}>
+                    <button
+                        onClick={handleGenerateJsonFromHtml}
+                        disabled={isConverting || activeInputTab !== 'html'}
+                        className="w-48 h-12 flex items-center justify-center bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-lg"
+                    >
+                        {isConverting ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : '▶ JSON으로 변환하기'}
+                    </button>
+                    <button
+                        onClick={handleUndo}
+                        disabled={previousPagePlan === null}
+                        className="w-48 h-12 flex items-center justify-center bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-lg"
+                    >
+                        ⏪ 되돌리기
+                    </button>
+                    <button
+                        onClick={handleGetFeedback}
+                        disabled={isFeedbackLoading || !previewHtml}
+                        className="w-48 h-12 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 disabled:cursor-wait text-white font-bold rounded-lg shadow-lg"
+                    >
+                        {isFeedbackLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : '🤖 AI 마케팅 피드백'}
+                    </button>
+                    {error && <div className="text-red-400 text-xs text-center max-w-xs">{error}</div>}
+                    {jsonError && <div className="text-red-400 text-xs text-center max-w-xs">{jsonError}</div>}
+                </div>
+
+                <div className="flex flex-col h-full min-w-0">
+                    <div className="flex border-b border-gray-600 items-center">
+                        <BuilderTabButton tabName="preview">Preview</BuilderTabButton>
+                        <BuilderTabButton tabName="feedback">AI 피드백</BuilderTabButton>
+                        <BuilderTabButton tabName="notes">내 피드백</BuilderTabButton>
+                         <div className="ml-auto flex items-center pr-4 gap-4">
                             <button
-                                onClick={handleSaveWorkToLocal}
-                                disabled={isSavingWork}
-                                className="px-3 py-1 flex items-center justify-center bg-teal-600 hover:bg-teal-700 disabled:bg-teal-800 disabled:cursor-not-allowed text-white font-bold rounded-md shadow-md text-sm"
+                                onClick={() => setIsPreviewMaximized(!isPreviewMaximized)}
+                                className="p-2 rounded-md hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+                                title={isPreviewMaximized ? "편집기 보기" : "전체 화면으로 보기"}
                             >
-                                 {isSavingWork ? '저장 중...' : '💾 현재 작업 저장'}
+                                {isPreviewMaximized ? <MinimizeIcon /> : <MaximizeIcon />}
                             </button>
-                             <button
-                                onClick={loadWorkFromLocal}
-                                disabled={!hasSavedData}
-                                className="px-3 py-1 flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-bold rounded-md shadow-md text-sm"
-                            >
-                                <LoadIcon /> <span className="ml-1.5">불러오기</span>
-                            </button>
-                             <button
-                                onClick={handleClearSavedWork}
-                                disabled={!hasSavedData}
-                                className="px-3 py-1 flex items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:cursor-not-allowed text-white font-bold rounded-md shadow-md text-sm"
-                            >
-                                <ClearIcon /> <span className="ml-1.5">초기화</span>
-                            </button>
+                             <label htmlFor="feedback-mode-toggle" className="flex items-center cursor-pointer">
+                                <span className="mr-3 text-sm font-medium text-gray-300">요소 피드백</span>
+                                <div className="relative">
+                                    <input 
+                                        type="checkbox" 
+                                        id="feedback-mode-toggle" 
+                                        className="sr-only peer" 
+                                        checked={isFeedbackModeEnabled}
+                                        onChange={() => setIsFeedbackModeEnabled(!isFeedbackModeEnabled)} 
+                                    />
+                                    <div className="w-14 h-8 bg-gray-600 rounded-full peer-checked:bg-green-600"></div>
+                                    <div className="absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform peer-checked:translate-x-full"></div>
+                                </div>
+                            </label>
                         </div>
-
-                        <div className="bg-gray-700 p-2 rounded-lg flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <input 
-                                    type="checkbox" 
-                                    id="split-image-checkbox"
-                                    checked={isSplitEnabled}
-                                    onChange={(e) => setIsSplitEnabled(e.target.checked)}
-                                    className="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-500 rounded focus:ring-indigo-500"
-                                />
+                    </div>
+                    <div className="flex-grow mt-[-1px]">
+                       {activeBuilderTab === 'preview' && <PreviewPanel 
+                            html={previewHtml}
+                            isFeedbackModeEnabled={isFeedbackModeEnabled}
+                            onElementFeedback={(feedback) => {
+                                setUserNotes(prev => `${prev}\n${feedback}`.trim());
+                                setActiveBuilderTab('notes');
+                            }}
+                            onImageFeedback={(src) => {
+                                setEditingGeneratedImage(null); // Ensure only one edit mode is active
+                                setEditingImage({ visible: true, src: src });
+                            }}
+                            onImageClick={(src) => {
+                                setFullScreenImageSrc(src);
+                            }}
+                        />}
+                       {activeBuilderTab === 'feedback' && <AiFeedbackPanel 
+                            feedback={aiFeedback} 
+                            isLoading={isFeedbackLoading} 
+                            error={feedbackError} 
+                            onApplySuggestion={handleApplySuggestion}
+                            onGenerateImage={handleGenerateAiImage}
+                            onInsertGeneratedImage={handleInsertGeneratedImage}
+                            onEditGeneratedImage={(index, src) => {
+                                setEditingImage({ visible: true, src });
+                                setEditingGeneratedImage({ index, src });
+                            }}
+                            applyingSuggestionIndex={applyingSuggestionIndex}
+                        />}
+                       {activeBuilderTab === 'notes' && <UserFeedbackPanel notes={userNotes} onChange={setUserNotes} onApply={handleApplyMyFeedback} isApplying={isFeedbackLoading} />}
+                    </div>
+                </div>
+            </main>
+        </div>
+    );
+}

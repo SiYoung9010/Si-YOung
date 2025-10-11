@@ -825,7 +825,7 @@ const renderCarouselBlock = (blocks: FullImageBlock[], carouselId: string): stri
         const stickerHtml = img.sticker ? `<div class="sticker ${img.sticker.position}">${img.sticker.text}</div>` : '';
         const containerClass = img.sticker ? 'image-with-sticker' : '';
         return `
-            <div class="carousel-slide ${containerClass}">
+            <div class="carousel-slide ${containerClass}" data-block-id="${img.block_id}">
                 ${stickerHtml}
                 <img src="${img.src}" alt="${img.alt}" crossorigin="anonymous">
             </div>
@@ -851,7 +851,7 @@ const renderBlock = (block: Block): string => {
         case 'hero_section':
             const hero = block as HeroSectionBlock;
             return `
-                <div class="hero-section">
+                <div class="hero-section" data-block-id="${hero.block_id}">
                   <div class="brand-tag">${hero.brandTag}</div>
                   <h1 class="main-title">${hero.mainTitle}</h1>
                   <p class="sub-title">${hero.subTitle}</p>
@@ -863,7 +863,7 @@ const renderBlock = (block: Block): string => {
             const stickerHtml = img.sticker ? `<div class="sticker ${img.sticker.position}">${img.sticker.text}</div>` : '';
             const containerClass = img.sticker ? 'image-with-sticker' : '';
             return `
-                <div class="full-image ${containerClass}">
+                <div class="full-image ${containerClass}" data-block-id="${img.block_id}">
                   ${stickerHtml}
                   <img src="${img.src}" alt="${img.alt}" crossorigin="anonymous">
                 </div>`;
@@ -871,7 +871,7 @@ const renderBlock = (block: Block): string => {
         case 'catch_phrase':
             const cp = block as CatchPhraseBlock;
             return `
-                <div class="catch-section">
+                <div class="catch-section" data-block-id="${cp.block_id}">
                   <div class="catch-bubble">
                     <div class="catch-text">
                       ${cp.lines.join('<br>')}
@@ -882,7 +882,7 @@ const renderBlock = (block: Block): string => {
         case 'story_card':
             const story = block as StoryCardBlock;
             return `
-                <div class="story-card">
+                <div class="story-card" data-block-id="${story.block_id}">
                   <div class="story-badge">
                     <span>${story.badge.icon}</span>
                     <span>${story.badge.text}</span>
@@ -898,7 +898,7 @@ const renderBlock = (block: Block): string => {
         case 'choice_section':
             const choice = block as ChoiceSectionBlock;
             return `
-                <div class="choice-section">
+                <div class="choice-section" data-block-id="${choice.block_id}">
                   <h2 class="section-title">${choice.title}</h2>
                   <p class="section-subtitle">${choice.subtitle}</p>
                   <div class="choice-grid">
@@ -915,7 +915,7 @@ const renderBlock = (block: Block): string => {
         case 'points_section':
             const points = block as PointsSectionBlock;
             return `
-                <div class="points-section">
+                <div class="points-section" data-block-id="${points.block_id}">
                   <div class="points-header">
                     <h2 class="section-title">${points.title}</h2>
                     <p class="section-subtitle">${points.subtitle}</p>
@@ -934,7 +934,7 @@ const renderBlock = (block: Block): string => {
         case 'detail_section':
             const detail = block as DetailSectionBlock;
             return `
-                <div class="detail-section">
+                <div class="detail-section" data-block-id="${detail.block_id}">
                   <h2 class="section-title" style="text-align: center; margin-bottom: 60px;">${detail.title}</h2>
                   ${detail.items.map(item => `
                     <div class="detail-item">
@@ -952,7 +952,7 @@ const renderBlock = (block: Block): string => {
             const usage = block as UsageSectionBlock;
             const mainImageHtml = usage.mainImage ? `<div class="full-image" style="margin: 40px 0;"><img src="${usage.mainImage.src}" alt="${usage.mainImage.alt}" crossorigin="anonymous"></div>` : '';
             return `
-                <div class="usage-section">
+                <div class="usage-section" data-block-id="${usage.block_id}">
                     <h2 class="section-title">${usage.title}</h2>
                     <p class="section-subtitle">${usage.subtitle}</p>
                     ${mainImageHtml}
@@ -970,7 +970,7 @@ const renderBlock = (block: Block): string => {
         case 'recommend_section':
             const rec = block as RecommendSectionBlock;
             return `
-                <div class="recommend-section">
+                <div class="recommend-section" data-block-id="${rec.block_id}">
                     <div class="recommend-badge">${rec.badge}</div>
                     <div class="recommend-text">${rec.text}</div>
                 </div>`;
@@ -978,7 +978,7 @@ const renderBlock = (block: Block): string => {
         case 'video_testimonial':
             const video = block as VideoTestimonialBlock;
             return `
-                <div class="video-testimonial-section">
+                <div class="video-testimonial-section" data-block-id="${video.block_id}">
                     <h2 class="section-title">${video.title}</h2>
                     <div class="video-wrapper">
                         <iframe
@@ -996,7 +996,7 @@ const renderBlock = (block: Block): string => {
         case 'info_section':
             const info = block as InfoSectionBlock;
             return `
-                <div class="info-section">
+                <div class="info-section" data-block-id="${info.block_id}">
                   <h2 class="section-title" style="text-align: center; margin-bottom: 40px;">${info.title}</h2>
                   <div class="info-card">
                     <table class="info-table">
@@ -1013,7 +1013,7 @@ const renderBlock = (block: Block): string => {
         case 'notice_section':
             const notice = block as NoticeSectionBlock;
             return `
-                <div class="notice-section">
+                <div class="notice-section" data-block-id="${notice.block_id}">
                     <h3 class="notice-title">${notice.title}</h3>
                     <ul class="notice-list">
                         ${notice.items.map(item => `<li>${item}</li>`).join('')}
@@ -1023,7 +1023,7 @@ const renderBlock = (block: Block): string => {
         case 'footer_section':
             const footer = block as FooterSectionBlock;
             return `
-                <div class="footer-section">
+                <div class="footer-section" data-block-id="${footer.block_id}">
                     <div class="footer-logo">${footer.logo}</div>
                     <p class="footer-text">${footer.text}</p>
                     <div class="footer-emoji">${footer.emoji}</div>
@@ -1159,26 +1159,16 @@ const generateBody = (blocks: Block[]): string => {
     </script>
     `;
 
-    // FIX: Removed backslash that was escaping the template literal backtick.
     return `<body><div class="container">${bodyContent}</div>${carouselScript}</body>`;
 };
 
-export const generateHtml = (jsonString: string, fontName: string): string => {
-  try {
-    const plan: ProductPlan = JSON.parse(jsonString);
-
-    if (!plan.project || !plan.description || !plan.blocks) {
-      throw new Error("Invalid JSON structure. Missing 'project', 'description' or 'blocks'.");
-    }
-
-    const head = generateHead(plan, fontName);
-    const body = generateBody(plan.blocks);
-
-    return `<!DOCTYPE html>\n<html lang="ko">\n${head}\n${body}\n</html>`;
-  } catch(e) {
-      if (e instanceof SyntaxError) {
-          throw new Error(`Invalid JSON format: ${e.message}`);
-      }
-      throw e;
+export const generateHtml = (plan: ProductPlan, fontName: string): string => {
+  if (!plan || !plan.project || !plan.description || !plan.blocks) {
+    throw new Error("Invalid ProductPlan object provided. Missing 'project', 'description' or 'blocks'.");
   }
+
+  const head = generateHead(plan, fontName);
+  const body = generateBody(plan.blocks);
+
+  return `<!DOCTYPE html>\n<html lang="ko">\n${head}\n${body}\n</html>`;
 };
